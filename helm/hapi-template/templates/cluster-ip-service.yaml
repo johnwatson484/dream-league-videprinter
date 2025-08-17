@@ -1,3 +1,0 @@
-{{- include "helm-library.cluster-ip-service" (list . "hapi-template.cluster-ip-service") -}}
-{{- define "hapi-template.cluster-ip-service" -}}
-{{- end -}}

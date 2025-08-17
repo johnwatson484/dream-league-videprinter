@@ -1,7 +1,7 @@
 # Development
 FROM node:22-alpine AS development
 ENV NODE_ENV=development
-ARG PORT=3000
+ARG PORT=3002
 ENV PORT=${PORT}
 EXPOSE ${PORT} 9229
 

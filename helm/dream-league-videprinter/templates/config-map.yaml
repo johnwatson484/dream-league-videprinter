@@ -1,0 +1,11 @@
+{{- include "helm-library.configmap" (list . "dream-league-videprinter.configmap") -}}
+{{- define "dream-league-videprinter.configmap" -}}
+data:
+  PORT: {{ .Values.container.port | quote }}
+  NODE_ENV: {{ .Values.configMap.environment | quote }}
+  USE_MOCK: {{.Values.configMap.useMock | quote }}
+  DAILY_REQUEST_CAP: {{ .Values.configMap.dailyRequestCap | quote }}
+  MONGO_ENABLED: {{ .Values.mongo.enabled | quote }}
+  MONGO_DB: {{ .Values.mongo.dbName | quote }}
+  MONGO_COLLECTION: {{ .Values.mongo.collection | quote }}
+{{- end -}}

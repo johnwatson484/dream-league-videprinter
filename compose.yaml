@@ -1,5 +1,34 @@
 services:
-  hapi-template:
+  dream-league-videprinter:
     build: .
-    image: hapi-template
-    container_name: hapi-template
+    image: dream-league-videprinter
+    container_name: dream-league-videprinter
+    environment:
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DBNAME=dream_league_videprinter
+      - MONGO_ENABLED=true
+      - USE_MOCK=true # set to false to enable LiveScore provider
+      - LIVE_SCORE_KEY=
+      - LIVE_SCORE_SECRET=
+    depends_on:
+      - mongo
+    networks:
+      - dream-league
+
+  mongo:
+    image: mongo:7
+    container_name: dream-league-videprinter-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - dream-league
+
+networks:
+  dream-league:
+    driver: bridge
+
+volumes:
+  mongo-data:

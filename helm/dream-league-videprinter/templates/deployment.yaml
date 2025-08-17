@@ -1,0 +1,3 @@
+{{- include "helm-library.deployment" (list . "dream-league-videprinter.deployment") -}}
+{{- define "dream-league-videprinter.deployment" -}}
+{{- end -}}

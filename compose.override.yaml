@@ -1,19 +1,39 @@
 services:
-  hapi-template:
+  dream-league-videprinter:
     build:
       target: development
-    image: hapi-template-development
-    container_name: hapi-template-development
+    image: dream-league-videprinter-development
+    container_name: dream-league-videprinter-development
     ports:
-      - "3000:3000"
-      - "9229:9229"
+      - "3002:3002"
+      - "9231:9229"
     volumes:
       - ./src:/home/node/src
       - ./package.json:/home/node/package.json
     networks:
-      - hapi-template
+      - dream-league
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DBNAME: dream_league_videprinter
+      MONGO_ENABLED: "true"
+      USE_MOCK: ${USE_MOCK:-true}
+      LIVE_SCORE_KEY: ${LIVE_SCORE_KEY}
+      LIVE_SCORE_SECRET: ${LIVE_SCORE_SECRET}
+  mongo:
+    image: mongo:7
+    container_name: dream-league-videprinter-mongo-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - dream-league
 
 networks:
-  hapi-template:
-    driver: bridge
-    name: hapi-template
+  dream-league:
+    external: true
+    name: dream-league
+
+volumes:
+  mongo-data:

@@ -1,8 +1,8 @@
 const route = {
   method: 'GET',
-  path: '/',
+  path: '/live-scores',
   handler: (request, h) => {
-    return h.redirect('/live-scores')
+    return h.view('live-scores')
   },
 }
 

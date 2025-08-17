@@ -14,4 +14,6 @@ resources:
 extends:
   template: build.yaml@templates
   parameters:
-    name: hapi-template
+    name: dream-league-videprinter
+    deploy: false
+    namespace: dream-league

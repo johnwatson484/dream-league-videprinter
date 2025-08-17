@@ -1,0 +1,3 @@
+{{- include "helm-library.ingress" (list . "dream-league-videprinter.ingress") -}}
+{{- define "dream-league-videprinter.ingress" -}}
+{{- end -}}

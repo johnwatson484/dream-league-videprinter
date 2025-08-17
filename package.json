@@ -1,13 +1,14 @@
 {
-  "name": "hapi-template",
+  "name": "dream-league-videprinter",
   "version": "1.0.0",
   "description": "",
   "main": "src/index.js",
   "scripts": {
     "pretest": "npm run test:lint",
-    "test": "jest --runInBand --forceExit",
+  "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit",
     "test:watch": "jest --coverage=false --onlyChanged --watch --runInBand",
     "test:lint": "eslint",
+  "lint:fix": "eslint --fix",
     "test:debug": "node --inspect-brk=0.0.0.0 ./node_modules/jest/bin/jest.js --coverage=false --onlyChanged --watch --runInBand --no-cache",
     "start": "node src",
     "start:watch": "nodemon --inspect=0.0.0.0 --ext js,css,njk --legacy-watch src/index.js",
@@ -27,9 +28,11 @@
     "convict": "6.2.4",
     "convict-format-with-validator": "6.2.0",
     "hapi-pino": "12.1.0",
-    "joi": "17.13.3",
-    "log-timestamp": "0.3.0",
-    "nunjucks": "3.2.4"
+  "joi": "17.13.3",
+  "log-timestamp": "0.3.0",
+  "nunjucks": "3.2.4",
+  "fuse.js": "7.0.0",
+  "mongodb": "6.8.0"
   },
   "devDependencies": {
     "blipp": "4.0.2",

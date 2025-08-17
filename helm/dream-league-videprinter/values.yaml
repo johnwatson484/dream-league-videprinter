@@ -1,0 +1,44 @@
+port: &port 3002
+
+container:
+  image: dream-league-videprinter
+  port: *port
+  resourceTier: M
+
+configMap:
+  environment: production
+  useLiveScore: false # set true to enable LiveScore provider (otherwise mock / corresponds to USE_MOCK env inverse)
+  dailyRequestCap: 1000
+
+# Mongo configuration
+mongo:
+  enabled: true
+  uri: ""               # mongodb://user:pass@host:27017/db
+  dbName: dream_league_videprinter
+  collection: goal_events
+
+secret:
+  liveScoreKey:
+  liveScoreSecret:
+  mongoUri:
+
+deployment: {}
+
+ingress:
+  host: videprinter.dreamleaguefantasyfootball.co.uk
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+  initialDelaySeconds: 10

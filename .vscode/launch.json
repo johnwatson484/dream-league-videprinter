@@ -9,7 +9,7 @@
       "type": "node",
       "request": "attach",
       "restart": true,
-      "port": 9229,
+      "port": 9231,
       "remoteRoot": "/home/node",
       "skipFiles": [
         "<node_internals>/**",
@@ -22,7 +22,7 @@
       "request": "attach",
       "remoteRoot": "/home/node",
       "restart": true,
-      "port": 9229,
+      "port": 9231,
       "skipFiles": [
         "<node_internals>/**",
         "**/node_modules/**"
@@ -34,7 +34,7 @@
       "name": "Docker: Jest Attach",
       "type": "node",
       "request": "attach",
-      "port": 9229,
+      "port": 9231,
       "restart": true,
       "timeout": 10000,
       "remoteRoot": "/home/node",
@@ -56,7 +56,7 @@
       "type": "pwa-node",
       "serverReadyAction": {
         "pattern": "Server running on",
-        "uriFormat": "http://localhost:3000",
+        "uriFormat": "http://localhost:3002",
         "action": "debugWithChrome"
       }
     },
@@ -74,7 +74,7 @@
       "name": "Node: Client",
       "type": "pwa-chrome",
       "request": "launch",
-      "url": "http://localhost:3000",
+      "url": "http://localhost:3002",
       "webRoot": "${workspaceFolder}"
     },
     {
@@ -82,7 +82,7 @@
       "type": "node",
       "request": "attach",
       "remoteRoot": "/home/node",
-      "port": 9229,
+      "port": 9231,
       "skipFiles": [
         "<node_internals>/**",
         "**/node_modules/**"

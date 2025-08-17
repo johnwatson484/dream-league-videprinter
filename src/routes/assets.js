@@ -3,11 +3,9 @@ const route = {
   path: '/assets/{path*}',
   handler: {
     directory: {
-      path: [
-        'src/assets/css',
-        'src/assets/js',
-        'src/assets/images',
-      ],
+      path: 'src/assets',
+      redirectToSlash: true,
+      index: false,
     },
   },
 }
