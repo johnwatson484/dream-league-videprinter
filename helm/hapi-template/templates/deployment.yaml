@@ -1,0 +1,3 @@
+{{- include "helm-library.deployment" (list . "hapi-template.deployment") -}}
+{{- define "hapi-template.deployment" -}}
+{{- end -}}

@@ -1,0 +1,3 @@
+services:
+  hapi-template:
+    command: npm run start:debug

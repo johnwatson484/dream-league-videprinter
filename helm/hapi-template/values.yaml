@@ -1,0 +1,33 @@
+port: &port 3000
+
+container:
+  image: hapi-template
+  port: *port
+  resourceTier: M
+
+configMap:
+  environment: production
+
+secret:
+  apiKey: secret-value
+
+deployment: {}
+
+ingress:
+  host: example.com
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: *port
+  initialDelaySeconds: 10

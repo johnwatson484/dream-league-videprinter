@@ -1,0 +1,14 @@
+services:
+  hapi-template:
+    build:
+      target: development
+    image: hapi-template-test
+    container_name: hapi-template-test
+    command: npm run test
+    volumes:
+      - ./src:/home/node/src
+      - ./test:/home/node/test
+      - ./test-output:/home/node/test-output
+      - ./package.json:/home/node/package.json
+    environment:
+      NODE_OPTIONS: "$NODE_OPTIONS --experimental-vm-modules"
