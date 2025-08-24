@@ -178,14 +178,20 @@ async function getLiveMatches (fetcher, url, shouldLog) {
 async function collectGoals (matches, shouldLog, liveCreds) {
   const compIds = COMP_ID_SET()
   if (shouldLog) console.log('[live-score] competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)')
+
+  // Safety check: limit matches to prevent API overages
+  const maxMatchesPerCycle = 80 // Conservative limit to stay under 14.5k daily calls
+  const filteredMatches = matches.filter(m => shouldIncludeMatch(m, compIds))
+  const matchesToProcess = filteredMatches.slice(0, maxMatchesPerCycle)
+
+  if (filteredMatches.length > maxMatchesPerCycle) {
+    if (shouldLog) console.log('[live-score] WARNING: %d matches found, limiting to %d for API safety', filteredMatches.length, maxMatchesPerCycle)
+  }
+
   const goals = []
-  for (const m of matches) {
+  for (const m of matchesToProcess) {
     const compId = m?.competition?.id ?? m.competition_id
     const compName = m?.competition?.name ?? m.competition_name
-    if (!shouldIncludeMatch(m, compIds)) {
-      if (shouldLog) console.log('[live-score] skipping match id=%s comp=%s(%s) - not in filter', m.id, compName, compId)
-      continue
-    }
     if (shouldLog) console.log('[live-score] processing match id=%s comp=%s(%s)', m.id, compName, compId)
     const mGoals = await goalsForMatch(m, shouldLog, liveCreds)
     goals.push(...mGoals)

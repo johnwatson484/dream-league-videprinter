@@ -15,5 +15,5 @@ extends:
   template: build.yaml@templates
   parameters:
     name: dream-league-videprinter
-    deploy: false
+    deploy: true
     namespace: dream-league
