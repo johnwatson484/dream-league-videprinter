@@ -26,7 +26,6 @@ export async function fetchLiveGoals () {
     leagueTwo: 'League Two',
     faCup: 'FA Cup',
     leagueCup: 'League Cup',
-    scottishPremiership: 'Scottish Premiership',
     premierLeague: 'Premier League'
   }
 

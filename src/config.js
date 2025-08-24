@@ -44,8 +44,20 @@ const config = convict({
     pollLiveIntervalMs: {
       doc: 'Polling interval (ms) when matches are live',
       format: 'nat',
-      default: 1000 * 60 * 2,
+      default: 1000 * 60 * 4,
       env: 'VIDEPRINTER_POLL_LIVE_MS',
+    },
+    quietHoursStart: {
+      doc: 'Hour (0-23) to stop polling during quiet period',
+      format: 'nat',
+      default: 23, // 11pm
+      env: 'VIDEPRINTER_QUIET_START',
+    },
+    quietHoursEnd: {
+      doc: 'Hour (0-23) to resume polling after quiet period',
+      format: 'nat',
+      default: 11, // 11am
+      env: 'VIDEPRINTER_QUIET_END',
     }
   },
   dataSource: {
@@ -63,7 +75,7 @@ const config = convict({
     dailyRequestCap: {
       doc: 'Max external requests per day',
       format: 'nat',
-      default: 1000,
+      default: 10000,
       env: 'DAILY_REQUEST_CAP',
     },
     liveScore: {
@@ -94,7 +106,6 @@ const config = convict({
           leagueTwo: 83,
           faCup: 152,
           leagueCup: 150,
-          scottishPremiership: 75,
           premierLeague: 2
         },
       },
