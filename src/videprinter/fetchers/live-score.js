@@ -1,5 +1,6 @@
 import config from '../../config.js'
 import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.js'
+import { batchCheckEventExists } from '../storage/mongo.js'
 import crypto from 'crypto'
 
 /*
@@ -216,15 +217,27 @@ async function goalsForMatch (match, shouldLog, liveCreds) {
 
   const normalizedGoals = events.map(g => normalizeGoal(match, g))
 
-  // Deduplicate goals based on ID
+  // Check MongoDB for existing events to prevent duplicates
+  const goalIds = normalizedGoals.map(g => g.id)
+  const existingIds = await batchCheckEventExists(goalIds)
+
+  // Filter out goals that already exist in MongoDB
   const uniqueGoals = []
   const seenIds = new Set()
   for (const goal of normalizedGoals) {
+    // Check if goal already exists in MongoDB
+    if (existingIds.has(goal.id)) {
+      if (shouldLog) console.log('[live-score] goal already exists in database: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+      continue
+    }
+
+    // Check local deduplication within this match
     if (!seenIds.has(goal.id)) {
       seenIds.add(goal.id)
       uniqueGoals.push(goal)
+      if (shouldLog) console.log('[live-score] new goal added: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
     } else if (shouldLog) {
-      console.log('[live-score] duplicate goal filtered: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+      console.log('[live-score] duplicate goal in match filtered: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
     }
   }
 

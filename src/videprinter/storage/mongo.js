@@ -46,6 +46,31 @@ export async function fetchRecentEvents (limit = 100) {
   return docs
 }
 
+export async function eventExists (eventId) {
+  if (!collection) return false
+  try {
+    const count = await collection.countDocuments({ id: eventId }, { limit: 1 })
+    return count > 0
+  } catch (err) {
+    console.error('[mongo] eventExists error', err.message)
+    return false
+  }
+}
+
+export async function batchCheckEventExists (eventIds = []) {
+  if (!collection || !eventIds.length) return new Set()
+  try {
+    const existingDocs = await collection.find(
+      { id: { $in: eventIds } },
+      { projection: { id: 1, _id: 0 } }
+    ).toArray()
+    return new Set(existingDocs.map(doc => doc.id))
+  } catch (err) {
+    console.error('[mongo] batchCheckEventExists error', err.message)
+    return new Set()
+  }
+}
+
 export async function closeMongo () {
   if (client) await client.close()
 }
