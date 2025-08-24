@@ -5,7 +5,7 @@ services:
     container_name: dream-league-videprinter
     environment:
       - MONGO_URI=mongodb://mongo:27017
-      - MONGO_DBNAME=dream_league_videprinter
+      - MONGO_DBNAME=dream-league-videprinter
       - MONGO_ENABLED=true
       - USE_MOCK=true # set to false to enable LiveScore provider
       - LIVE_SCORE_KEY=

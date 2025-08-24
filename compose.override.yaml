@@ -14,7 +14,8 @@ services:
       - dream-league
     environment:
       MONGO_URI: mongodb://mongo:27017
-      MONGO_DBNAME: dream_league_videprinter
+      MONGO_DBNAME: dream-league-videprinter
+      MONGO_COLLECTION: goal-events
       MONGO_ENABLED: "true"
       USE_MOCK: ${USE_MOCK:-true}
       LIVE_SCORE_KEY: ${LIVE_SCORE_KEY}

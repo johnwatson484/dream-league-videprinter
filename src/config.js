@@ -35,26 +35,71 @@ const config = convict({
     env: 'APP_NAME',
   },
   videprinter: {
-    doc: 'Videprinter feature configuration',
-    format: Object,
-    default: {
-      enabled: true,
-      competitions: ['Championship', 'League One', 'League Two', 'FA Cup', 'League Cup'],
-      pollLiveIntervalMs: 30020,
-      pollIdleIntervalMs: 300200,
+    enabled: {
+      doc: 'Enable videprinter feature',
+      format: Boolean,
+      default: true,
+      env: 'VIDEPRINTER_ENABLED',
+    },
+    competitions: {
+      doc: 'Human friendly competition names',
+      format: Array,
+      default: ['Championship', 'League One', 'League Two', 'FA Cup', 'League Cup'],
+    },
+    pollLiveIntervalMs: {
+      doc: 'Polling interval (ms) when matches are live',
+      format: 'nat',
+      default: 30020,
+      env: 'VIDEPRINTER_POLL_LIVE_MS',
+    },
+    pollIdleIntervalMs: {
+      doc: 'Polling interval (ms) when idle',
+      format: 'nat',
+      default: 300200,
+      env: 'VIDEPRINTER_POLL_IDLE_MS',
     },
   },
   dataSource: {
-    doc: 'External football data source configuration',
-    format: Object,
-    default: {
-      provider: 'mock', // 'mock' or 'live-score'
-      liveScore: {
-        host: 'livescore-api.com',
-        key: '',
-        secret: '',
-        // Hard-coded LiveScore competition IDs used by both live provider and mock
-        competitions: {
+    provider: {
+      doc: 'Resolved provider based on useMock flag',
+      format: String,
+      default: 'mock', // computed after load
+    },
+    useMock: {
+      doc: 'Toggle mock provider (true) vs LiveScore (false)',
+      format: Boolean,
+      default: true,
+      env: 'USE_MOCK',
+    },
+    dailyRequestCap: {
+      doc: 'Max external requests per day',
+      format: 'nat',
+      default: 1000,
+      env: 'DAILY_REQUEST_CAP',
+    },
+    liveScore: {
+      host: {
+        doc: 'LiveScore host',
+        format: String,
+        default: 'livescore-api.com',
+        env: 'LIVE_SCORE_HOST',
+      },
+      key: {
+        doc: 'LiveScore API key',
+        format: String,
+        default: '',
+        env: 'LIVE_SCORE_KEY',
+      },
+      secret: {
+        doc: 'LiveScore API secret',
+        format: String,
+        default: '',
+        env: 'LIVE_SCORE_SECRET',
+      },
+      competitions: {
+        doc: 'Hard-coded LiveScore competition IDs',
+        format: Object,
+        default: {
           championship: 77,
           leagueOne: 82,
           leagueTwo: 83,
@@ -62,54 +107,48 @@ const config = convict({
           leagueCup: 150,
         },
       },
-      dailyRequestCap: 1000,
-    },
-  },
-  ingest: {
-    doc: 'Downstream API ingest endpoint for enriched events',
-    format: Object,
-    default: {
-      url: '',
-      token: '',
-      batchSize: 20,
     },
   },
   mongo: {
-    doc: 'MongoDB connection settings',
-    format: Object,
-    default: {
-      uri: '', // e.g. mongodb://localhost:27017
-      dbName: 'dream_league_videprinter',
-      collection: 'goal_events',
-      enabled: false,
+    uri: {
+      doc: 'Mongo connection string',
+      format: String,
+      default: '',
+      env: 'MONGO_URI',
+    },
+    dbName: {
+      doc: 'Mongo database name',
+      format: String,
+      default: 'dream-league-videprinter',
+      env: 'MONGO_DBNAME',
+    },
+    collection: {
+      doc: 'Mongo collection for goal events',
+      format: String,
+      default: 'goal-events',
+      env: 'MONGO_COLLECTION',
+    },
+    enabled: {
+      doc: 'Enable Mongo persistence',
+      format: Boolean,
+      default: false,
+      env: 'MONGO_ENABLED',
     },
   },
 })
 
+// Resolve provider based on useMock flag
+try {
+  const useMock = config.get('dataSource.useMock')
+  config.set('dataSource.provider', useMock ? 'mock' : 'live-score')
+} catch {}
+
 // Development convenience: speed up mock polling so goals appear quickly
-if (config.get('env') === 'development' && config.get('dataSource').provider === 'mock') {
+if (config.get('env') === 'development' && config.get('dataSource.useMock') === true) {
   try {
     config.set('videprinter.pollLiveIntervalMs', 5000)
   } catch {}
 }
-
-// Environment override: USE_MOCK boolean (default true)
-try {
-  const mockEnv = process.env.USE_MOCK
-  if (mockEnv !== undefined) {
-    const mockFlag = /^(1|true|yes)$/i.test(mockEnv)
-    config.set('dataSource.provider', mockFlag ? 'mock' : 'live-score')
-  }
-} catch {}
-if (process.env.LIVE_SCORE_KEY) { try { config.set('dataSource.liveScore.key', process.env.LIVE_SCORE_KEY) } catch {} }
-if (process.env.LIVE_SCORE_SECRET) { try { config.set('dataSource.liveScore.secret', process.env.LIVE_SCORE_SECRET) } catch {} }
-
-// Derived convenience: flat competition ID set
-try {
-  const comps = config.get('dataSource.liveScore.competitions')
-  config.set('dataSource.liveScore.competitionIdSet', new Set(Object.values(comps)))
-} catch {}
-
 config.validate({ allowed: 'strict' })
 
 export default config

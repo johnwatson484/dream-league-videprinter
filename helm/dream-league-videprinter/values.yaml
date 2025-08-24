@@ -7,20 +7,16 @@ container:
 
 configMap:
   environment: production
-  useLiveScore: false # set true to enable LiveScore provider (otherwise mock / corresponds to USE_MOCK env inverse)
+  useMock: false
   dailyRequestCap: 1000
 
-# Mongo configuration
 mongo:
   enabled: true
-  uri: ""               # mongodb://user:pass@host:27017/db
-  dbName: dream_league_videprinter
-  collection: goal_events
+  dbName: dream-league-videprinter
+  collection: goal-events
 
 secret:
-  liveScoreKey:
-  liveScoreSecret:
-  mongoUri:
+  secretsPath: /dream-league-videprinter
 
 deployment: {}
 
