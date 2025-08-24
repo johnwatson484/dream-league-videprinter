@@ -8,7 +8,7 @@ container:
 configMap:
   environment: production
   useMock: false
-  dailyRequestCap: 1000
+  dailyRequestCap: 10000
 
 mongo:
   enabled: true
