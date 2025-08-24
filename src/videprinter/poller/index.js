@@ -5,6 +5,7 @@ import { videprinterBroadcaster } from '../state/broadcaster.js'
 import { eventsStore } from '../state/events-store.js'
 import { saveEvents } from '../storage/mongo.js'
 import { remainingRequestsToday } from '../state/request-counter.js'
+import { dreamLeagueService } from '../matching/dream-league-service.js'
 
 function isQuietHours () {
   const { quietHoursStart, quietHoursEnd } = config.get('videprinter')
@@ -33,14 +34,21 @@ async function loop () {
   // Goals are already deduplicated by the fetcher using MongoDB
   let emitted = 0
   for (const goal of goals) {
-    videprinterBroadcaster.emit('goal', goal)
-    eventsStore.add(goal)
+    // Enhance goal with Dream League Fantasy Football data
+    const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
+
+    videprinterBroadcaster.emit('goal', enhancedGoal)
+    eventsStore.add(enhancedGoal)
     emitted++
   }
 
   // Save all new goals to MongoDB
   if (goals.length > 0) {
-    await saveEvents(goals)
+    // Enhance goals before saving
+    const enhancedGoals = await Promise.all(
+      goals.map(goal => dreamLeagueService.enhanceGoal(goal))
+    )
+    await saveEvents(enhancedGoals)
   }
 
   return emitted

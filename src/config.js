@@ -110,6 +110,20 @@ const config = convict({
         },
       },
     },
+    dreamLeague: {
+      apiUrl: {
+        doc: 'Dream League Fantasy Football API URL',
+        format: String,
+        default: 'https://dreamleaguefantasyfootball.co.uk/api/v1',
+        env: 'DREAM_LEAGUE_API_URL',
+      },
+      enabled: {
+        doc: 'Enable Dream League Fantasy Football integration',
+        format: Boolean,
+        default: true,
+        env: 'DREAM_LEAGUE_ENABLED',
+      },
+    },
   },
   mongo: {
     uri: {

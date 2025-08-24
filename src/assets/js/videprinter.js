@@ -67,7 +67,18 @@
     const scorer = `<span class="goal-scorer">${goal.scorer.name}</span>`
     const goalLabel = '<span class="goal-label">GOAL</span>'
 
-    li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}`
+    // Add Dream League Fantasy Football information
+    let dreamLeagueInfo = ''
+    if (goal.potentialGoalFor) {
+      const substitute = goal.potentialGoalFor.substitute ? ' (SUB)' : ''
+      dreamLeagueInfo += `<div class="dream-league-info potential-goal">Potential goal for <strong>${goal.potentialGoalFor.manager}</strong>${substitute}</div>`
+    }
+    if (goal.potentialConcedingFor) {
+      const substitute = goal.potentialConcedingFor.substitute ? ' (SUB)' : ''
+      dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
+    }
+
+    li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}${dreamLeagueInfo}`
 
     list.prepend(li)
     toggleEmptyState()
@@ -93,7 +104,18 @@
               const scorer = `<span class="goal-scorer">${ev.scorer.name}</span>`
               const goalLabel = '<span class="goal-label">GOAL</span>'
 
-              li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}`
+              // Add Dream League Fantasy Football information for history
+              let dreamLeagueInfo = ''
+              if (ev.potentialGoalFor) {
+                const substitute = ev.potentialGoalFor.substitute ? ' (SUB)' : ''
+                dreamLeagueInfo += `<div class="dream-league-info potential-goal">Potential goal for <strong>${ev.potentialGoalFor.manager}</strong>${substitute}</div>`
+              }
+              if (ev.potentialConcedingFor) {
+                const substitute = ev.potentialConcedingFor.substitute ? ' (SUB)' : ''
+                dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
+              }
+
+              li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}${dreamLeagueInfo}`
               list.prepend(li)
             })
             toggleEmptyState()
