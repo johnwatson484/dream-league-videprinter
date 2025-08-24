@@ -4,6 +4,7 @@
   const list = document.getElementById('videprinter')
   const statusEl = document.getElementById('status')
   const pauseBtn = document.getElementById('toggle-pause')
+  const emptyState = document.getElementById('empty-state')
   let paused = false
   let es
   let retryDelay = 1000
@@ -11,18 +12,42 @@
 
   pauseBtn.addEventListener('click', () => {
     paused = !paused
-    pauseBtn.textContent = paused ? 'Resume' : 'Pause'
+    if (paused) {
+      pauseBtn.innerHTML = '<i class="bi bi-play-fill"></i> Resume'
+      pauseBtn.classList.remove('btn-outline-secondary')
+      pauseBtn.classList.add('btn-secondary')
+    } else {
+      pauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i> Pause'
+      pauseBtn.classList.remove('btn-secondary')
+      pauseBtn.classList.add('btn-outline-secondary')
+    }
   })
 
   function updateStatus (text) {
-    statusEl.textContent = text + (lastHeartbeatTs ? ` (last hb ${timeAgo(lastHeartbeatTs)})` : '')
-  }
+    const fullText = text + (lastHeartbeatTs ? ` (last hb ${timeAgo(lastHeartbeatTs)})` : '')
+    statusEl.textContent = fullText
 
-  function timeAgo (ts) {
+    // Update status styling
+    statusEl.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'live', 'connecting', 'reconnecting')
+    if (text === 'Live') {
+      statusEl.classList.add('bg-success', 'live')
+    } else if (text === 'Connecting...') {
+      statusEl.classList.add('bg-warning', 'connecting')
+    } else if (text === 'Reconnecting...') {
+      statusEl.classList.add('bg-danger', 'reconnecting')
+    } else {
+      statusEl.classList.add('bg-secondary')
+    }
+  } function timeAgo (ts) {
     const d = Date.now() - ts
     if (d < 2000) return '1s'
     if (d < 60000) return Math.floor(d / 1000) + 's'
     return Math.floor(d / 60000) + 'm'
+  }
+
+  function toggleEmptyState () {
+    const hasEvents = list.children.length > 0
+    emptyState.style.display = hasEvents ? 'none' : 'block'
   }
 
   setInterval(() => {
@@ -33,14 +58,25 @@
 
   function prependEvent (goal) {
     if (paused) return
-    const li = document.createElement('li')
-    li.className = 'videprinter-event'
-    const minute = goal.minute != null ? `[${goal.minute}' ] ` : ''
-    li.textContent = `${minute}${goal.scoringTeam.name} vs ${goal.concedingTeam.name} – GOAL ${goal.scorer.name}`
-    list.prepend(li)
-  }
 
-  function connect () {
+    const li = document.createElement('li')
+    li.className = 'videprinter-event list-group-item new-goal'
+
+    const minute = goal.minute != null ? `<span class="goal-minute">${goal.minute}'</span>` : ''
+    const teams = `<span class="goal-teams">${goal.scoringTeam.name} vs ${goal.concedingTeam.name}</span>`
+    const scorer = `<span class="goal-scorer">${goal.scorer.name}</span>`
+    const goalLabel = '<span class="goal-label">GOAL</span>'
+
+    li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}`
+
+    list.prepend(li)
+    toggleEmptyState()
+
+    // Remove animation class after animation completes
+    setTimeout(() => {
+      li.classList.remove('new-goal')
+    }, 1000)
+  } function connect () {
     updateStatus('Connecting...')
     // Load recent history only on first connect
     if (!es) {
@@ -48,7 +84,19 @@
         .then(r => r.json())
         .then(data => {
           if (Array.isArray(data.events)) {
-            [...data.events].reverse().forEach(ev => prependEvent(ev))
+            [...data.events].reverse().forEach(ev => {
+              const li = document.createElement('li')
+              li.className = 'videprinter-event list-group-item'
+
+              const minute = ev.minute != null ? `<span class="goal-minute">${ev.minute}'</span>` : ''
+              const teams = `<span class="goal-teams">${ev.scoringTeam.name} vs ${ev.concedingTeam.name}</span>`
+              const scorer = `<span class="goal-scorer">${ev.scorer.name}</span>`
+              const goalLabel = '<span class="goal-label">GOAL</span>'
+
+              li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}`
+              list.prepend(li)
+            })
+            toggleEmptyState()
           }
         }).catch(() => {})
     }
@@ -73,5 +121,7 @@
     })
   }
 
+  // Initialize empty state on load
+  toggleEmptyState()
   connect()
 })()

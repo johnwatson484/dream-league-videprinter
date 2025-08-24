@@ -1,11 +1,31 @@
 {% extends '_layout.njk' %}
 
 {% block content %}
-  <h1>Live Scores Videprinter</h1>
-  <div id="videprinter-controls">
-    <button id="toggle-pause" class="button">Pause</button>
-    <span id="status" class="status">Connecting...</span>
+  <div class="row">
+    <div class="col-12">
+      <h1 class="mb-4">Live Scores</h1>
+      
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">Videprinter</h3>
+        <div class="d-flex align-items-center gap-3">
+          <button id="toggle-pause" class="btn btn-outline-secondary">
+            <i class="bi bi-pause-fill"></i> Pause
+          </button>
+          <span class="badge bg-secondary" id="status">Connecting...</span>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-body p-0">
+          <div id="videprinter-container" style="max-height: 70vh; overflow-y: auto;">
+            <ol id="videprinter" class="videprinter list-group list-group-flush"></ol>
+            <div id="empty-state" class="text-center p-5 text-muted" style="display: none;">
+              <p class="mb-0">Waiting for live goal updates...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <ol id="videprinter" class="videprinter"></ol>
   <script src="/assets/js/videprinter.js"></script>
 {% endblock %}

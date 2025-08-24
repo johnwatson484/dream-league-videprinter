@@ -9,19 +9,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css2?family=Mukta&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link href="{{ assetPath }}/css/bootstrap.css" rel="stylesheet"/>
     <link href="{{ assetPath }}/css/site.css" rel="stylesheet"/>
   <link rel="stylesheet" href="/assets/css/videprinter.css">
   </head>
 
   <body>
-  <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark box-shadow mb-3">
+    <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark box-shadow mb-3">
       <div class="container-fluid">
         <a class="navbar-brand" href="/">{{ appName }}</a>
       </div>
     </nav>
-    <div class="container">
+    <div class="container mt-4">
       {% block content %}
       {% endblock %}
     </div>

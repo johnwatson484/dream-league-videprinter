@@ -1,3 +1,120 @@
-.videprinter { list-style: none; padding-left: 0; }
-.videprinter-event { padding: 4px 8px; border-bottom: 1px solid #ddd; font-family: monospace; }
-.status { margin-left: 1rem; font-weight: bold; }
+.videprinter { 
+  list-style: none; 
+  padding-left: 0; 
+  margin: 0;
+}
+
+.videprinter-event { 
+  padding: 12px 16px; 
+  border: none;
+  background: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+  transition: background-color 0.2s ease;
+}
+
+.videprinter-event:hover {
+  background: #f8f9fa;
+}
+
+.videprinter-event:last-child {
+  border-bottom: none;
+}
+
+.videprinter-event.new-goal {
+  animation: highlightGoal 1s ease-in-out;
+  background: #d1ecf1;
+}
+
+@keyframes highlightGoal {
+  0% { background-color: #d4edda; }
+  100% { background-color: #ffffff; }
+}
+
+.goal-minute {
+  font-weight: bold;
+  color: #198754;
+  background: #d1ecf1;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.875em;
+  margin-right: 8px;
+  display: inline-block;
+}
+
+.goal-teams {
+  font-weight: 500;
+  color: #212529;
+  margin-right: 6px;
+}
+
+.goal-scorer {
+  color: #6f42c1;
+  font-weight: 500;
+}
+
+.goal-label {
+  background: #dc3545;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+.status { 
+  margin-left: 1rem; 
+  font-weight: bold; 
+}
+
+.status.live {
+  background-color: #198754 !important;
+}
+
+.status.connecting {
+  background-color: #ffc107 !important;
+  color: #000 !important;
+}
+
+.status.reconnecting {
+  background-color: #dc3545 !important;
+}
+
+#videprinter-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+#videprinter-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+#videprinter-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+#videprinter-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+@media (max-width: 768px) {
+  .videprinter-event {
+    padding: 10px 12px;
+    font-size: 0.9em;
+  }
+  
+  .goal-minute {
+    font-size: 0.8em;
+    margin-right: 6px;
+  }
+  
+  .d-flex.justify-content-between {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start !important;
+  }
+  
+  .d-flex.align-items-center.gap-3 {
+    justify-content: flex-start;
+  }
+}
