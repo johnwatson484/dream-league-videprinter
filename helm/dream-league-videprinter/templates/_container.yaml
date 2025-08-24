@@ -1,10 +1,2 @@
 {{- define "dream-league-videprinter.container" -}}
-envFrom:
-	- configMapRef:
-			name: {{ include "helm-library.fullname" . }}
-	- secretRef:
-			name: {{ include "helm-library.fullname" . }}
-ports:
-	- name: http
-		containerPort: {{ .Values.container.port }}
 {{- end -}}
