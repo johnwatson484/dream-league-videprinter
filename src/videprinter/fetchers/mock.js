@@ -25,7 +25,9 @@ export async function fetchLiveGoals () {
     leagueOne: 'League One',
     leagueTwo: 'League Two',
     faCup: 'FA Cup',
-    leagueCup: 'League Cup'
+    leagueCup: 'League Cup',
+    scottishPremiership: 'Scottish Premiership',
+    premierLeague: 'Premier League'
   }
 
   const home = pick(TEAM_NAMES)

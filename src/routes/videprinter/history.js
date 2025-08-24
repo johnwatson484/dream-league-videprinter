@@ -15,7 +15,11 @@ const route = {
     const mongoCfg = config.get('mongo')
     if (mongoCfg.enabled) {
       const events = await fetchRecentEvents(limit)
-      return { events }
+      if (Array.isArray(events) && events.length > 0) {
+        return { events }
+      }
+      // Fallback to in-memory store when Mongo isn't initialised or has no data
+      return { events: eventsStore.list({ limit, order: 'desc' }) }
     }
     return { events: eventsStore.list({ limit, order: 'desc' }) }
   },

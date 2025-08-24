@@ -105,6 +105,8 @@ const config = convict({
           leagueTwo: 83,
           faCup: 152,
           leagueCup: 150,
+          scottishPremiership: 75,
+          premierLeague: 19
         },
       },
     },
