@@ -352,14 +352,21 @@ function inferSideFromTeamName (e, match) {
 }
 
 function isLikelyGoalEvent (e) {
-  // Prefer explicit score presence; many APIs include other event types too.
-  if (e?.score && /\d+\s*-\s*\d+/.test(e.score)) return true
-  const t = (e?.type || e?.event || '').toString().toLowerCase()
-  return ['g', 'goal', 'pen', 'penalty', 'own', 'owngoal'].some(k => t.includes(k))
+  // Use exact event type matching based on LiveScore API documentation
+  const eventType = (e?.event || '').toString().toUpperCase()
+  return ['GOAL', 'GOAL_PENALTY', 'OWN_GOAL'].includes(eventType)
 }
 
 function getGoalScorer (e) {
-  return e?.scorer || e?.player || e?.player_name || e?.name || null
+  const baseScorer = e?.scorer || e?.player || e?.player_name || e?.name || 'Unknown'
+  const eventType = (e?.event || '').toString().toUpperCase()
+
+  // Add "OG" suffix for own goals
+  if (eventType === 'OWN_GOAL') {
+    return `${baseScorer} OG`
+  }
+
+  return baseScorer
 }
 
 function getAssist (e) {
