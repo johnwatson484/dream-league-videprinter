@@ -31,7 +31,7 @@ const config = convict({
   appName: {
     doc: 'The name of the application.',
     format: String,
-    default: 'Dream League Videprinter',
+    default: 'Dream League',
     env: 'APP_NAME',
   },
   videprinter: {
