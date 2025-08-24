@@ -4,37 +4,50 @@ import crypto from 'crypto'
 
 /*
  LiveScore API docs: https://live-score-api.com/documentation
- We'll call the live scores endpoint (e.g. /matches/live.json) which returns matches with score & goals.
- Free tier limits calls & may not include all desired comps simultaneously; we filter competitions.
+ We'll call the live scores endpoint (/api-client/matches/live.json) which returns matches with score lines
+ and metadata. In most plans, goal-by-goal events are NOT embedded; instead, an events URL is provided per
+ match under urls.events that must be queried separately to obtain individual scorers/timestamps.
 
- Expected JSON shape (simplified / pseudo):
+ Sample match shape (simplified):
  {
-   data: {
-     match: [
-       { id, competition_id, competition_name, home_name, away_name, home_id, away_id, score, status, events: [ { time, scorer, score } ] }
-     ]
-   }
+   id, status, time, competition: { id, name }, home: { id, name }, away: { id, name },
+   scores: { score: "3 - 1", ht_score: "1 - 0", ft_score: "3 - 1" },
+   urls: { events: "https://livescore-api.com/api-client/scores/events.json?id=..." }
  }
- Some plans require extra endpoint for goals; adjust if needed.
 */
 
-const COMP_ID_SET = () => config.get('dataSource').liveScore.competitionIdSet || new Set()
+// Build a Set of allowed competition IDs from dataSource.liveScore.competitions
+const COMP_ID_SET = () => {
+  try {
+    const idMap = config.get('dataSource').liveScore.competitions || {}
+    const ids = Object.values(idMap).filter(id => typeof id === 'number' && !Number.isNaN(id))
+    return new Set(ids)
+  } catch {
+    return new Set()
+  }
+}
 let loggedCompCheck = false
 
 function debugCompetitionIds (matches) {
   if (!process.env.DEBUG_COMP_IDS || loggedCompCheck) return
   loggedCompCheck = true
   try {
-    const expected = config.get('dataSource').liveScore.competitions
+    const idMap = config.get('dataSource').liveScore.competitions || {}
+    const expectedIds = Object.values(idMap).filter(id => typeof id === 'number' && !Number.isNaN(id))
+    const expected = { ids: expectedIds, mapping: idMap }
     const seen = new Map()
-    for (const m of matches) seen.set(m.competition_id, m.competition_name)
-    console.log('[comp-id-debug] expected mapping:', expected)
-    console.log('[comp-id-debug] seen live mapping:', Object.fromEntries(seen))
-    const expectedIds = Object.values(expected).map(String)
-    const missing = expectedIds.filter(id => !seen.has(id) && !seen.has(Number(id)))
+    for (const m of matches) {
+      const cid = m?.competition?.id ?? m.competition_id
+      const cname = m?.competition?.name ?? m.competition_name
+      seen.set(cid, cname)
+    }
+    console.log('[comp-id-debug] expected competitions from config:', expected)
+    console.log('[comp-id-debug] seen live competitions:', Object.fromEntries(seen))
+    const expectedIdsStr = expectedIds.map(String)
+    const missing = expectedIdsStr.filter(id => !seen.has(id) && !seen.has(Number(id)))
     if (missing.length) console.log('[comp-id-debug] expected IDs not in current live sample:', missing)
-    const unexpected = [...seen.keys()].filter(id => !expectedIds.includes(String(id)))
-    if (unexpected.length) console.log('[comp-id-debug] additional live competition IDs (review):', unexpected)
+    const unexpected = [...seen.keys()].filter(id => !expectedIdsStr.includes(String(id)))
+    if (unexpected.length) console.log('[comp-id-debug] additional live competition IDs (not in config):', unexpected)
   } catch (err) {
     console.warn('[comp-id-debug] failed to log competition id debug', err.message)
   }
@@ -44,37 +57,68 @@ function extractGoalEvents (match) {
   return match.goals || match.events || []
 }
 
+function hasGoalsInMatch (match) {
+  // Consider both nested `scores` and legacy top-level score fields
+  const s = match?.scores || {}
+  const candidates = [
+    s.score, s.ft_score, s.ht_score,
+    match?.score, match?.ft_score, match?.ht_score
+  ]
+  for (const str of candidates) {
+    const { home, away } = parseScore(str)
+    if (home != null && away != null && (home + away) > 0) return true
+  }
+  return false
+}
+
 function parseScore (scoreStr) {
   if (!scoreStr || !/\d+\s*-\s*\d+/.test(scoreStr)) return { home: null, away: null }
   const [hs, as] = scoreStr.split('-').map(s => parseInt(s.trim(), 10))
   return { home: hs, away: as }
 }
 
+function getTeamNames (match) {
+  return {
+    home: match.home_name || match?.home?.name || null,
+    away: match.away_name || match?.away?.name || null,
+  }
+}
+
 function inferScoringTeam (match, homeScore, awayScore, rawGoal) {
+  const names = getTeamNames(match)
+  // Prefer explicit side from events payload when available
+  if (rawGoal?.home_away === 'h') return names.home
+  if (rawGoal?.home_away === 'a') return names.away
   if (homeScore == null || awayScore == null) return rawGoal.scorer
   if (homeScore + awayScore === 0) return null
-  if (homeScore > awayScore) return match.home_name
-  if (awayScore > homeScore) return match.away_name
+  if (homeScore > awayScore) return names.home
+  if (awayScore > homeScore) return names.away
   // scores level -> try scorer text heuristic
-  if (rawGoal.scorer?.includes(match.home_name)) return match.home_name
-  if (rawGoal.scorer?.includes(match.away_name)) return match.away_name
+  if (rawGoal.scorer?.includes(names.home)) return names.home
+  if (rawGoal.scorer?.includes(names.away)) return names.away
   return rawGoal.scorer
 }
 
 function normalizeGoal (match, rawGoal) {
   const { home: homeScore, away: awayScore } = parseScore(rawGoal.score)
   const scoringTeamGuess = inferScoringTeam(match, homeScore, awayScore, rawGoal)
+  const names = getTeamNames(match)
+  const baseStable = rawGoal.eventId
+    ? `${match.id}-${rawGoal.eventId}`
+    : `${match.id}-${rawGoal.time}-${(rawGoal.scorer || '').toLowerCase()}-${rawGoal.score}`
+  const stableHash = crypto.createHash('sha1').update(baseStable).digest('hex').slice(0, 16)
+  const eventIdPart = rawGoal.eventId || stableHash
 
   return {
-    id: `${match.id}-${rawGoal.time}-${crypto.randomUUID()}`,
+    id: `${match.id}-${eventIdPart}`,
     fixtureId: String(match.id),
-    competition: match.competition_name,
+    competition: match?.competition?.name || match.competition_name,
     utcTimestamp: new Date().toISOString(),
     minute: parseInt(rawGoal.time, 10) || null,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
-    concedingTeam: { name: scoringTeamGuess === match?.home_name ? match.away_name : match.home_name },
+    concedingTeam: { name: scoringTeamGuess === names.home ? names.away : names.home },
     scorer: { name: rawGoal.scorer || 'Unknown', normalizedName: (rawGoal.scorer || 'Unknown').toLowerCase() },
-    assist: null,
+    assist: rawGoal.assist ? { name: rawGoal.assist, normalizedName: rawGoal.assist.toLowerCase() } : null,
     scoreAfterEvent: homeScore != null && awayScore != null ? { home: homeScore, away: awayScore } : { home: null, away: null },
     phase: match.status || 'LIVE',
     source: 'live-score',
@@ -82,31 +126,206 @@ function normalizeGoal (match, rawGoal) {
 }
 
 export async function fetchLiveScoreGoals (fetcher = fetch) {
+  const shouldLog = process.env.DEBUG_LIVE_SCORE === '1' || process.env.DEBUG_LIVE_SCORE === 'true' || config.get('isDev')
+  const { url, ds } = buildLiveUrl()
+  if (shouldLog) console.log('[live-score] fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host)
+  if (!ds.liveScore.key || !ds.liveScore.secret) {
+    if (shouldLog) console.log('[live-score] skip: missing API credentials')
+    return []
+  }
+  if (!(await canMakeExternalRequest())) {
+    if (shouldLog) console.log('[live-score] skip: daily request cap reached')
+    return []
+  }
+  await noteExternalRequest()
+  if (shouldLog) console.log('[live-score] requesting %s', maskSecret(url))
+  const matches = await getLiveMatches(fetcher, url, shouldLog)
+  if (!matches.length) return []
+  const liveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
+  return await collectGoals(matches, shouldLog, liveCreds)
+}
+
+function buildLiveUrl () {
   const ds = config.get('dataSource')
   const { key, secret, host } = ds.liveScore
-  if (!key || !secret) return []
-  const compIds = COMP_ID_SET()
-  // Live matches endpoint
-  const url = `https://${host}/scores/live.json?key=${encodeURIComponent(key)}&secret=${encodeURIComponent(secret)}`
-  if (!(await canMakeExternalRequest())) return []
-  await noteExternalRequest()
+  const url = `https://${host}/api-client/matches/live.json?key=${encodeURIComponent(key || '')}&secret=${encodeURIComponent(secret || '')}`
+  return { url, ds }
+}
+
+function maskSecret (url) { return url.replace(/secret=[^&]*/i, 'secret=***') }
+
+async function getLiveMatches (fetcher, url, shouldLog) {
   const res = await fetcher(url)
+  if (shouldLog) console.log('[live-score] response status=%s ok=%s', res.status, res.ok)
   if (!res.ok) return []
-  let matches
   try {
     const json = await res.json()
-    matches = json?.data?.match
-    if (!Array.isArray(matches)) return []
-  } catch { return [] }
-  debugCompetitionIds(matches)
+    const matches = json?.data?.match
+    if (!Array.isArray(matches)) {
+      if (shouldLog) console.log('[live-score] no matches array in response')
+      return []
+    }
+    if (shouldLog) console.log('[live-score] matches received=%d', matches.length)
+    debugCompetitionIds(matches)
+    return matches
+  } catch (e) {
+    if (shouldLog) console.log('[live-score] json parse error: %s', e?.message || e)
+    return []
+  }
+}
+
+async function collectGoals (matches, shouldLog, liveCreds) {
+  const compIds = COMP_ID_SET()
+  if (shouldLog) console.log('[live-score] competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)')
   const goals = []
   for (const m of matches) {
-    if (compIds.size && !compIds.has(Number(m.competition_id))) continue
-    const events = extractGoalEvents(m)
-    for (const g of events) {
-      // Expect g = { time: '12', scorer: 'Player Name', score: '1 - 0' }
-      goals.push(normalizeGoal(m, g))
+    const compId = m?.competition?.id ?? m.competition_id
+    const compName = m?.competition?.name ?? m.competition_name
+    if (!shouldIncludeMatch(m, compIds)) {
+      if (shouldLog) console.log('[live-score] skipping match id=%s comp=%s(%s) - not in filter', m.id, compName, compId)
+      continue
     }
+    if (shouldLog) console.log('[live-score] processing match id=%s comp=%s(%s)', m.id, compName, compId)
+    const mGoals = await goalsForMatch(m, shouldLog, liveCreds)
+    goals.push(...mGoals)
   }
+  if (shouldLog) console.log('[live-score] goals emitted=%d', goals.length)
   return goals
 }
+
+function shouldIncludeMatch (match, compIds) {
+  const compId = match?.competition?.id ?? match.competition_id
+  return !(compIds.size && !compIds.has(Number(compId)))
+}
+
+async function goalsForMatch (match, shouldLog, liveCreds) {
+  let events = extractGoalEvents(match)
+  if (!events.length && hasGoalsInMatch(match) && match?.urls?.events) {
+    if (shouldLog) console.log('[live-score] fetching events for match id=%s (score indicates goals present)', match.id)
+    try {
+      events = await fetchMatchEvents(match, liveCreds, shouldLog)
+    } catch (err) {
+      if (shouldLog) console.log('[live-score] events fetch failed for match %s: %s', match.id, err?.message || err)
+      events = []
+    }
+  } else if (shouldLog && events.length) {
+    console.log('[live-score] using embedded events for match id=%s count=%d', match.id, events.length)
+  } else if (shouldLog && !hasGoalsInMatch(match)) {
+    console.log('[live-score] skipping events fetch for match id=%s (no goals in score)', match.id)
+  }
+  return events.map(g => normalizeGoal(match, g))
+}
+
+function appendCredsToUrl (url, key, secret) {
+  if (!url) return url
+  const hasKey = /[?&]key=/.test(url)
+  const hasSecret = /[?&]secret=/.test(url)
+  if (hasKey && hasSecret) return url
+  const sep = url.includes('?') ? '&' : '?'
+  const params = []
+  if (!hasKey) params.push(`key=${encodeURIComponent(key || '')}`)
+  if (!hasSecret) params.push(`secret=${encodeURIComponent(secret || '')}`)
+  return url + sep + params.join('&')
+}
+
+async function fetchMatchEvents (match, liveCreds, shouldLog, fetcher = fetch) {
+  try {
+    if (!(await canMakeExternalRequest())) {
+      if (shouldLog) console.log('[live-score] skip events: daily request cap reached for match id=%s', match.id)
+      return []
+    }
+    await noteExternalRequest()
+    const url = appendCredsToUrl(match.urls.events, liveCreds?.key, liveCreds?.secret)
+    if (shouldLog) console.log('[live-score] events requesting %s', maskSecret(url))
+    const res = await fetcher(url)
+    if (shouldLog) console.log('[live-score] events response status=%s ok=%s', res.status, res.ok)
+    if (!res.ok) return []
+    const json = await res.json()
+    const events = json?.data?.event || json?.data?.events || []
+    const ordered = orderEvents(events)
+    const mapped = mapGoalEvents(ordered, match)
+    if (shouldLog) console.log('[live-score] events parsed for match id=%s count=%d', match.id, mapped.length)
+    return mapped
+  } catch (err) {
+    if (shouldLog) console.log('[live-score] events fetch/parse error for match %s: %s', match?.id, err?.message || err)
+    return []
+  }
+}
+
+function orderEvents (events) {
+  return [...events].sort((a, b) => {
+    const as = Number(a?.sort)
+    const bs = Number(b?.sort)
+    if (!Number.isNaN(as) && !Number.isNaN(bs)) return as - bs
+    const at = Number(a?.time ?? a?.minute ?? a?.min)
+    const bt = Number(b?.time ?? b?.minute ?? b?.min)
+    if (!Number.isNaN(at) && !Number.isNaN(bt)) return at - bt
+    return 0
+  })
+}
+
+function determineSide (e) {
+  const sideRaw = (e?.home_away || e?.side || e?.team || '').toString().toLowerCase()
+  if (sideRaw.startsWith('h')) return 'h'
+  if (sideRaw.startsWith('a')) return 'a'
+  return null
+}
+
+function mapGoalEvents (ordered, match) {
+  let homeGoals = 0
+  let awayGoals = 0
+  const out = []
+  for (const e of ordered) {
+    if (!isLikelyGoalEvent(e)) continue
+
+    // Try to get score from event or increment running total
+    let eventScore = null
+    if (e?.score && /\d+\s*-\s*\d+/.test(String(e.score))) {
+      eventScore = parseScore(String(e.score))
+      homeGoals = eventScore.home
+      awayGoals = eventScore.away
+    } else {
+      // Increment based on side
+      const side = determineSide(e) || inferSideFromTeamName(e, match)
+      if (side === 'h') homeGoals += 1
+      else if (side === 'a') awayGoals += 1
+    }
+
+    out.push({
+      time: String(e.time ?? e.minute ?? e.min ?? ''),
+      scorer: getGoalScorer(e),
+      assist: getAssist(e),
+      score: eventScore ? `${eventScore.home} - ${eventScore.away}` : `${homeGoals} - ${awayGoals}`,
+      home_away: determineSide(e) || inferSideFromTeamName(e, match),
+      eventId: String(e.id ?? e.event_id ?? e.eventId ?? '')
+    })
+  }
+  return out
+}
+
+function inferSideFromTeamName (e, match) {
+  if (!match) return null
+  const teamStr = (e?.team || e?.team_name || e?.club || '').toString().toLowerCase()
+  const homeName = (match.home_name || match?.home?.name || '').toString().toLowerCase()
+  const awayName = (match.away_name || match?.away?.name || '').toString().toLowerCase()
+  if (teamStr && homeName && teamStr.includes(homeName)) return 'h'
+  if (teamStr && awayName && teamStr.includes(awayName)) return 'a'
+  return null
+}
+
+function isLikelyGoalEvent (e) {
+  // Prefer explicit score presence; many APIs include other event types too.
+  if (e?.score && /\d+\s*-\s*\d+/.test(e.score)) return true
+  const t = (e?.type || e?.event || '').toString().toLowerCase()
+  return ['g', 'goal', 'pen', 'penalty', 'own', 'owngoal'].some(k => t.includes(k))
+}
+
+function getGoalScorer (e) {
+  return e?.scorer || e?.player || e?.player_name || e?.name || null
+}
+
+function getAssist (e) {
+  return e?.assist || e?.assist_name || e?.info || null
+}
+
+// removed unused goalScoreString helper after events refactor

@@ -41,23 +41,12 @@ const config = convict({
       default: true,
       env: 'VIDEPRINTER_ENABLED',
     },
-    competitions: {
-      doc: 'Human friendly competition names',
-      format: Array,
-      default: ['Championship', 'League One', 'League Two', 'FA Cup', 'League Cup'],
-    },
     pollLiveIntervalMs: {
       doc: 'Polling interval (ms) when matches are live',
       format: 'nat',
-      default: 30020,
+      default: 1000 * 60 * 2,
       env: 'VIDEPRINTER_POLL_LIVE_MS',
-    },
-    pollIdleIntervalMs: {
-      doc: 'Polling interval (ms) when idle',
-      format: 'nat',
-      default: 300200,
-      env: 'VIDEPRINTER_POLL_IDLE_MS',
-    },
+    }
   },
   dataSource: {
     provider: {
@@ -97,7 +86,7 @@ const config = convict({
         env: 'LIVE_SCORE_SECRET',
       },
       competitions: {
-        doc: 'Hard-coded LiveScore competition IDs',
+        doc: 'Competition IDs to track - this defines which competitions the videprinter will process',
         format: Object,
         default: {
           championship: 77,
@@ -106,7 +95,7 @@ const config = convict({
           faCup: 152,
           leagueCup: 150,
           scottishPremiership: 75,
-          premierLeague: 19
+          premierLeague: 2
         },
       },
     },
