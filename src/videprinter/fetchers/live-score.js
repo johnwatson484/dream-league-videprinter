@@ -213,7 +213,22 @@ async function goalsForMatch (match, shouldLog, liveCreds) {
   } else if (shouldLog && !hasGoalsInMatch(match)) {
     console.log('[live-score] skipping events fetch for match id=%s (no goals in score)', match.id)
   }
-  return events.map(g => normalizeGoal(match, g))
+
+  const normalizedGoals = events.map(g => normalizeGoal(match, g))
+
+  // Deduplicate goals based on ID
+  const uniqueGoals = []
+  const seenIds = new Set()
+  for (const goal of normalizedGoals) {
+    if (!seenIds.has(goal.id)) {
+      seenIds.add(goal.id)
+      uniqueGoals.push(goal)
+    } else if (shouldLog) {
+      console.log('[live-score] duplicate goal filtered: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+    }
+  }
+
+  return uniqueGoals
 }
 
 function appendCredsToUrl (url, key, secret) {
@@ -272,31 +287,41 @@ function determineSide (e) {
 }
 
 function mapGoalEvents (ordered, match) {
-  let homeGoals = 0
-  let awayGoals = 0
   const out = []
+  let runningHomeGoals = 0
+  let runningAwayGoals = 0
+
   for (const e of ordered) {
     if (!isLikelyGoalEvent(e)) continue
 
-    // Try to get score from event or increment running total
-    let eventScore = null
+    let finalScore = null
+    const side = determineSide(e) || inferSideFromTeamName(e, match)
+
+    // If event has explicit score, use it directly
     if (e?.score && /\d+\s*-\s*\d+/.test(String(e.score))) {
-      eventScore = parseScore(String(e.score))
-      homeGoals = eventScore.home
-      awayGoals = eventScore.away
+      const eventScore = parseScore(String(e.score))
+      finalScore = `${eventScore.home} - ${eventScore.away}`
+      runningHomeGoals = eventScore.home
+      runningAwayGoals = eventScore.away
     } else {
-      // Increment based on side
-      const side = determineSide(e) || inferSideFromTeamName(e, match)
-      if (side === 'h') homeGoals += 1
-      else if (side === 'a') awayGoals += 1
+      // No explicit score on event - increment based on which side scored
+      if (side === 'h') {
+        runningHomeGoals += 1
+      } else if (side === 'a') {
+        runningAwayGoals += 1
+      } else {
+        // Can't determine side, skip this event to avoid incorrect counting
+        continue
+      }
+      finalScore = `${runningHomeGoals} - ${runningAwayGoals}`
     }
 
     out.push({
       time: String(e.time ?? e.minute ?? e.min ?? ''),
       scorer: getGoalScorer(e),
       assist: getAssist(e),
-      score: eventScore ? `${eventScore.home} - ${eventScore.away}` : `${homeGoals} - ${awayGoals}`,
-      home_away: determineSide(e) || inferSideFromTeamName(e, match),
+      score: finalScore,
+      home_away: side,
       eventId: String(e.id ?? e.event_id ?? e.eventId ?? '')
     })
   }

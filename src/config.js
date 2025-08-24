@@ -116,7 +116,7 @@ const config = convict({
     collection: {
       doc: 'Mongo collection for goal events',
       format: String,
-      default: 'goal-events',
+      default: 'goalEvents',
       env: 'MONGO_COLLECTION',
     },
     enabled: {

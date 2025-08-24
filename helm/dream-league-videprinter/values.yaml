@@ -13,7 +13,6 @@ configMap:
 mongo:
   enabled: true
   dbName: dream-league-videprinter
-  collection: goal-events
 
 secret:
   secretsPath: /dream-league-videprinter
