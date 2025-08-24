@@ -42,7 +42,11 @@ export async function saveEvents (events = [], logger = console) {
 
 export async function fetchRecentEvents (limit = 100) {
   if (!collection) return []
-  const docs = await collection.find({}, { projection: { _id: 0 } }).sort({ utcTimestamp: -1 }).limit(limit).toArray()
+  // Sort by timestamp (descending, latest first)
+  const docs = await collection.find({}, { projection: { _id: 0 } })
+    .sort({ utcTimestamp: -1 })
+    .limit(limit)
+    .toArray()
   return docs
 }
 

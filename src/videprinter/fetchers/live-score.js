@@ -104,14 +104,14 @@ function normalizeGoal (match, rawGoal) {
   const { home: homeScore, away: awayScore } = parseScore(rawGoal.score)
   const scoringTeamGuess = inferScoringTeam(match, homeScore, awayScore, rawGoal)
   const names = getTeamNames(match)
-  const baseStable = rawGoal.eventId
-    ? `${match.id}-${rawGoal.eventId}`
-    : `${match.id}-${rawGoal.time}-${(rawGoal.scorer || '').toLowerCase()}-${rawGoal.score}`
+
+  // Create a stable identifier based on match + time + scorer + score, not eventId
+  // This prevents duplicates when API updates eventId for same goal
+  const baseStable = `${match.id}-${rawGoal.time}-${(rawGoal.scorer || '').toLowerCase()}-${rawGoal.score}`
   const stableHash = crypto.createHash('sha1').update(baseStable).digest('hex').slice(0, 16)
-  const eventIdPart = rawGoal.eventId || stableHash
 
   return {
-    id: `${match.id}-${eventIdPart}`,
+    id: `${match.id}-${stableHash}`, // Use stable hash instead of changing eventId
     fixtureId: String(match.id),
     competition: match?.competition?.name || match.competition_name,
     utcTimestamp: new Date().toISOString(),
@@ -190,7 +190,11 @@ async function collectGoals (matches, shouldLog, liveCreds) {
     const mGoals = await goalsForMatch(m, shouldLog, liveCreds)
     goals.push(...mGoals)
   }
-  if (shouldLog) console.log('[live-score] goals emitted=%d', goals.length)
+
+  // Sort goals by timestamp (latest first)
+  goals.sort((a, b) => new Date(b.utcTimestamp) - new Date(a.utcTimestamp))
+
+  if (shouldLog) console.log('[live-score] goals emitted=%d (sorted by latest timestamp)', goals.length)
   return goals
 }
 
