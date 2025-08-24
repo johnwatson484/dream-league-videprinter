@@ -24,6 +24,8 @@ export async function initMongo (logger = console) {
   collection = db.collection(mongoCfg.collection)
   await collection.createIndex({ id: 1 }, { unique: true })
   await collection.createIndex({ utcTimestamp: -1 })
+  // TTL index to automatically delete documents older than 24 hours
+  await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 86400 }) // 24 hours = 86400 seconds
   // Register meta collection (for request counter & misc small docs)
   registerMetaCollection(db)
   safeLog('[mongo] connected')
