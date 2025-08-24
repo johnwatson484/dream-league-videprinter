@@ -1,3 +1,12 @@
 {{- include "helm-library.ingress" (list . "dream-league-videprinter.ingress") -}}
 {{- define "dream-league-videprinter.ingress" -}}
+metadata:
+  annotations:
+      # Don't buffer or cache streamed responses
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+      nginx.ingress.kubernetes.io/proxy-cache: "off"
+
+      # Keep the connection open for a long time
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 {{- end -}}

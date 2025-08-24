@@ -37,7 +37,12 @@ const route = {
       .type('text/event-stream')
       .header('Cache-Control', 'no-cache, no-transform')
       .header('Connection', 'keep-alive')
+      // Prevent proxy buffering (NGINX, etc.) and compression which can delay SSE delivery
+      .header('X-Accel-Buffering', 'no')
+      .header('Content-Encoding', 'identity')
 
+    // Initial comment to force headers flush in some proxies
+    stream.write(': connected\n\n')
     // initial event
     writeEvent(stream, 'connected', { type: 'init', ts: new Date().toISOString() })
     const onGoal = (event) => writeEvent(stream, 'goal', event)

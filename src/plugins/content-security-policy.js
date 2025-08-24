@@ -7,6 +7,7 @@ const plugin = {
     imgSrc: ['self'],
     scriptSrc: ['self', 'unsafe-inline', 'cdn.jsdelivr.net'],
     styleSrc: ['self', 'unsafe-inline', 'cdn.jsdelivr.net', 'fonts.googleapis.com'],
+    connectSrc: ['self'],
     frameAncestors: ['self'],
     formAction: ['self'],
     generateNonces: false
