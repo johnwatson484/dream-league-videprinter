@@ -21,12 +21,13 @@ export async function fetchLiveGoals () {
 
   const compEntry = pick(compEntries) // [key, id]
   const competitionNameMap = {
+    premierLeague: 'Premier League',
     championship: 'Championship',
     leagueOne: 'League One',
     leagueTwo: 'League Two',
+    nationalLeague: 'National League',
     faCup: 'FA Cup',
-    leagueCup: 'League Cup',
-    premierLeague: 'Premier League'
+    leagueCup: 'League Cup'
   }
 
   const home = pick(TEAM_NAMES)
