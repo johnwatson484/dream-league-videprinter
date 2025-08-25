@@ -64,8 +64,14 @@
 
     const minute = goal.minute != null ? `<span class="goal-minute">${goal.minute}'</span>` : ''
     const teams = `<span class="goal-teams">${goal.scoringTeam.name} vs ${goal.concedingTeam.name}</span>`
+
+    // Add current score if available
+    let currentScore = ''
+    if (goal.scoreAfterEvent && goal.scoreAfterEvent.home != null && goal.scoreAfterEvent.away != null) {
+      currentScore = ` <span class="current-score">${goal.scoreAfterEvent.home}-${goal.scoreAfterEvent.away}</span>`
+    }
+
     const scorer = `<span class="goal-scorer">${goal.scorer.name}</span>`
-    const goalLabel = '<span class="goal-label">GOAL</span>'
 
     // Add Dream League Fantasy Football information
     let dreamLeagueInfo = ''
@@ -78,7 +84,7 @@
       dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
     }
 
-    li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}${dreamLeagueInfo}`
+    li.innerHTML = `${minute}${teams}–${currentScore} ${scorer}${dreamLeagueInfo}`
 
     list.prepend(li)
     toggleEmptyState()
@@ -101,8 +107,14 @@
 
               const minute = ev.minute != null ? `<span class="goal-minute">${ev.minute}'</span>` : ''
               const teams = `<span class="goal-teams">${ev.scoringTeam.name} vs ${ev.concedingTeam.name}</span>`
+
+              // Add current score if available for history
+              let currentScore = ''
+              if (ev.scoreAfterEvent && ev.scoreAfterEvent.home != null && ev.scoreAfterEvent.away != null) {
+                currentScore = ` <span class="current-score">${ev.scoreAfterEvent.home}-${ev.scoreAfterEvent.away}</span>`
+              }
+
               const scorer = `<span class="goal-scorer">${ev.scorer.name}</span>`
-              const goalLabel = '<span class="goal-label">GOAL</span>'
 
               // Add Dream League Fantasy Football information for history
               let dreamLeagueInfo = ''
@@ -115,7 +127,7 @@
                 dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
               }
 
-              li.innerHTML = `${minute}${teams}– ${scorer}${goalLabel}${dreamLeagueInfo}`
+              li.innerHTML = `${minute}${teams}–${currentScore} ${scorer}${dreamLeagueInfo}`
               list.prepend(li)
             })
             toggleEmptyState()

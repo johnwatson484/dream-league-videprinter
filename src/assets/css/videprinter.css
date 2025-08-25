@@ -52,6 +52,17 @@
   font-weight: 500;
 }
 
+.current-score {
+  background: #598234;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.875em;
+  font-weight: bold;
+  margin-left: 6px;
+  margin-right: 6px;
+}
+
 .goal-label {
   background: #dc3545;
   color: white;
