@@ -101,11 +101,9 @@ const config = convict({
         doc: 'Competition IDs to track - this defines which competitions the videprinter will process',
         format: Object,
         default: {
-          premierLeague: 2,
           championship: 77,
           leagueOne: 82,
           leagueTwo: 83,
-          nationalLeague: 154,
           faCup: 152,
           leagueCup: 150,
         },
