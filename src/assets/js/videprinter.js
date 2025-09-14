@@ -9,6 +9,8 @@
   let es
   let retryDelay = 1000
   let lastHeartbeatTs = null
+  let lastEventTimestamp = null
+  const knownEventIds = new Set()
 
   pauseBtn.addEventListener('click', () => {
     paused = !paused
@@ -59,6 +61,15 @@
   function prependEvent (goal) {
     if (paused) return
 
+    // Skip if we've already seen this event
+    if (knownEventIds.has(goal.id)) return
+
+    // Track this event
+    knownEventIds.add(goal.id)
+    if (goal.utcTimestamp) {
+      lastEventTimestamp = goal.utcTimestamp
+    }
+
     const li = document.createElement('li')
     li.className = 'videprinter-event list-group-item new-goal'
 
@@ -93,15 +104,51 @@
     setTimeout(() => {
       li.classList.remove('new-goal')
     }, 1000)
-  } function connect () {
+  }
+
+  function fetchMissedEvents () {
+    if (!lastEventTimestamp) return Promise.resolve()
+
+    return fetch('/videprinter/history?limit=100')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.events)) {
+          // Filter events newer than our last known event
+          const missedEvents = data.events.filter(ev =>
+            ev.utcTimestamp && ev.utcTimestamp > lastEventTimestamp && !knownEventIds.has(ev.id)
+          )
+
+          // Add missed events (newest first)
+          missedEvents.forEach(ev => {
+            prependEvent(ev)
+          })
+
+          if (missedEvents.length > 0) {
+            console.log(`Recovered ${missedEvents.length} missed events after reconnection`)
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch missed events:', err)
+      })
+  }
+
+  function connect () {
     updateStatus('Connecting...')
-    // Load recent history only on first connect
+
     if (!es) {
+      // Load recent history only on first connect
       fetch('/videprinter/history?limit=50')
         .then(r => r.json())
         .then(data => {
           if (Array.isArray(data.events)) {
             [...data.events].reverse().forEach(ev => {
+              // Track historical events to prevent duplicates
+              knownEventIds.add(ev.id)
+              if (ev.utcTimestamp && (!lastEventTimestamp || ev.utcTimestamp > lastEventTimestamp)) {
+                lastEventTimestamp = ev.utcTimestamp
+              }
+
               const li = document.createElement('li')
               li.className = 'videprinter-event list-group-item'
 
@@ -133,6 +180,9 @@
             toggleEmptyState()
           }
         }).catch(() => {})
+    } else {
+      // On reconnection, fetch any missed events
+      fetchMissedEvents()
     }
     es = new EventSource('/videprinter/stream')
     es.addEventListener('open', () => {
