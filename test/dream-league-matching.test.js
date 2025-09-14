@@ -31,6 +31,14 @@ describe('FuzzyMatcher', () => {
         team: 'Blackpool',
         manager: 'Billy Gordon',
         substitute: false
+      },
+      {
+        playerId: 999,
+        name: 'Smith, John',
+        position: 'Forward',
+        team: 'Blackpool',
+        manager: 'Billy Gordon',
+        substitute: true
       }
     ]
 
@@ -112,8 +120,38 @@ describe('FuzzyMatcher', () => {
   test('returns summary correctly', () => {
     const summary = fuzzyMatcher.getSummary()
 
-    expect(summary.playersLoaded).toBe(3)
+    expect(summary.playersLoaded).toBe(4)
     expect(summary.goalkeepersLoaded).toBe(3)
     expect(summary.uniqueManagers).toBe(2) // Billy Gordon and Bob Brown
+  })
+
+  test('excludes substitute players from matches', () => {
+    // Try to find substitute player John Smith - should not return any matches
+    const matches = fuzzyMatcher.findPlayerMatches('Smith, John', 'Blackpool')
+
+    expect(matches).toHaveLength(0)
+  })
+
+  test('excludes substitute goalkeepers from matches', () => {
+    // Try to find substitute goalkeeper Notts County - should not return any matches
+    const matches = fuzzyMatcher.findGoalkeeperMatches('Notts County')
+
+    expect(matches).toHaveLength(0)
+  })
+
+  test('includes non-substitute players in matches', () => {
+    // Verify that non-substitute players are still found
+    const matches = fuzzyMatcher.findPlayerMatches('Fletcher, Ashley', 'Blackpool')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].player.substitute).toBe(false)
+  })
+
+  test('includes non-substitute goalkeepers in matches', () => {
+    // Verify that non-substitute goalkeepers are still found
+    const matches = fuzzyMatcher.findGoalkeeperMatches('Blackburn Rovers')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].team.substitute).toBe(false)
   })
 })

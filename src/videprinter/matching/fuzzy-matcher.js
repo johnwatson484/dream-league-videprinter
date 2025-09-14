@@ -47,7 +47,8 @@ export class FuzzyMatcher {
           name: gk.name,
           normalizedName: this.normalizeName(gk.name),
           teamId: gk.teamId,
-          manager: gk.manager
+          manager: gk.manager,
+          substitute: gk.substitute
         })
       }
       return acc
@@ -84,6 +85,9 @@ export class FuzzyMatcher {
     // Filter by team if available and convert to our format
     const results = nameMatches
       .filter(match => {
+        // Exclude substitutes from matches
+        if (match.item.substitute) return false
+
         if (!scoringTeam) return true
         // Use fuzzy team matching instead of exact
         return this.isTeamMatch(match.item.team, scoringTeam)
@@ -107,7 +111,12 @@ export class FuzzyMatcher {
     const teamMatches = this.teamFuse.search(concedingTeam)
 
     return teamMatches
-      .filter(match => (1 - match.score) > 0.7) // High confidence for team matches
+      .filter(match => {
+        // Exclude substitutes from matches
+        if (match.item.substitute) return false
+
+        return (1 - match.score) > 0.7 // High confidence for team matches
+      })
       .map(match => ({
         team: match.item,
         confidence: 1 - match.score,

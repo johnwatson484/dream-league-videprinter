@@ -63,7 +63,7 @@
     li.className = 'videprinter-event list-group-item new-goal'
 
     const minute = goal.minute != null ? `<span class="goal-minute">${goal.minute}'</span>` : ''
-    const teams = `<span class="goal-teams">${goal.scoringTeam.name} vs ${goal.concedingTeam.name}</span>`
+    const teams = `<span class="scoring-team">${goal.scoringTeam.name}</span> <span class="vs-text">vs</span> <span class="conceding-team">${goal.concedingTeam.name}</span>`
 
     // Add current score if available
     let currentScore = ''
@@ -106,7 +106,7 @@
               li.className = 'videprinter-event list-group-item'
 
               const minute = ev.minute != null ? `<span class="goal-minute">${ev.minute}'</span>` : ''
-              const teams = `<span class="goal-teams">${ev.scoringTeam.name} vs ${ev.concedingTeam.name}</span>`
+              const teams = `<span class="scoring-team">${ev.scoringTeam.name}</span> <span class="vs-text">vs</span> <span class="conceding-team">${ev.concedingTeam.name}</span>`
 
               // Add current score if available for history
               let currentScore = ''
