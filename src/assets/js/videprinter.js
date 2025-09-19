@@ -74,7 +74,50 @@
     li.className = 'videprinter-event list-group-item new-goal'
 
     const minute = goal.minute != null ? `<span class="goal-minute">${goal.minute}'</span>` : ''
-    const teams = `<span class="scoring-team">${goal.scoringTeam.name}</span> <span class="vs-text">vs</span> <span class="conceding-team">${goal.concedingTeam.name}</span>`
+
+    // Determine team display order - home team first, with scoring team bold
+    let teamDisplay
+    if (goal.scoreAfterEvent && goal.scoreAfterEvent.home != null && goal.scoreAfterEvent.away != null) {
+      // Use scoreAfterEvent to determine which team is home and which is away
+      const homeScore = goal.scoreAfterEvent.home
+      const awayScore = goal.scoreAfterEvent.away
+
+      // Determine which team is home/away by comparing current scores with previous
+      // If scoring team's current score is higher, they just scored
+      let homeTeam, awayTeam
+
+      // Check if scoring team corresponds to home or away position
+      if (homeScore > awayScore) {
+        // Home team just scored (their score is higher)
+        homeTeam = goal.scoringTeam.name
+        awayTeam = goal.concedingTeam.name
+      } else if (awayScore > homeScore) {
+        // Away team just scored (their score is higher)
+        homeTeam = goal.concedingTeam.name
+        awayTeam = goal.scoringTeam.name
+      } else {
+        // Scores are equal, use alphabetical as fallback
+        const teams = [goal.scoringTeam.name, goal.concedingTeam.name].sort()
+        homeTeam = teams[0]
+        awayTeam = teams[1]
+      }
+
+      // Apply CSS classes based on which team scored (regardless of home/away position)
+      const homeClass = homeTeam === goal.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+      const awayClass = awayTeam === goal.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+
+      teamDisplay = `<span class="${homeClass}">${homeTeam}</span> <span class="vs-text">vs</span> <span class="${awayClass}">${awayTeam}</span>`
+    } else {
+      // Fallback: use alphabetical ordering as home/away, bold the scoring team
+      const teams = [goal.scoringTeam.name, goal.concedingTeam.name].sort()
+      const homeTeam = teams[0]
+      const awayTeam = teams[1]
+
+      const homeClass = homeTeam === goal.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+      const awayClass = awayTeam === goal.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+
+      teamDisplay = `<span class="${homeClass}">${homeTeam}</span> <span class="vs-text">vs</span> <span class="${awayClass}">${awayTeam}</span>`
+    }
 
     // Add current score if available
     let currentScore = ''
@@ -95,7 +138,7 @@
       dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
     }
 
-    li.innerHTML = `${minute}${teams}${currentScore}<br>${scorer}${dreamLeagueInfo}`
+    li.innerHTML = `${minute}${teamDisplay}${currentScore}<br>${scorer}${dreamLeagueInfo}`
 
     list.prepend(li)
     toggleEmptyState()
@@ -153,7 +196,49 @@
               li.className = 'videprinter-event list-group-item'
 
               const minute = ev.minute != null ? `<span class="goal-minute">${ev.minute}'</span>` : ''
-              const teams = `<span class="scoring-team">${ev.scoringTeam.name}</span> <span class="vs-text">vs</span> <span class="conceding-team">${ev.concedingTeam.name}</span>`
+
+              // Determine team display order for history - home team first, with scoring team bold
+              let teamDisplay
+              if (ev.scoreAfterEvent && ev.scoreAfterEvent.home != null && ev.scoreAfterEvent.away != null) {
+                // Use scoreAfterEvent to determine which team is home and which is away
+                const homeScore = ev.scoreAfterEvent.home
+                const awayScore = ev.scoreAfterEvent.away
+
+                // Determine which team is home/away by comparing current scores with previous
+                let homeTeam, awayTeam
+
+                // Check if scoring team corresponds to home or away position
+                if (homeScore > awayScore) {
+                  // Home team just scored (their score is higher)
+                  homeTeam = ev.scoringTeam.name
+                  awayTeam = ev.concedingTeam.name
+                } else if (awayScore > homeScore) {
+                  // Away team just scored (their score is higher)
+                  homeTeam = ev.concedingTeam.name
+                  awayTeam = ev.scoringTeam.name
+                } else {
+                  // Scores are equal, use alphabetical as fallback
+                  const teams = [ev.scoringTeam.name, ev.concedingTeam.name].sort()
+                  homeTeam = teams[0]
+                  awayTeam = teams[1]
+                }
+
+                // Apply CSS classes based on which team scored (regardless of home/away position)
+                const homeClass = homeTeam === ev.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+                const awayClass = awayTeam === ev.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+
+                teamDisplay = `<span class="${homeClass}">${homeTeam}</span> <span class="vs-text">vs</span> <span class="${awayClass}">${awayTeam}</span>`
+              } else {
+                // Fallback: use alphabetical ordering as home/away, bold the scoring team
+                const teams = [ev.scoringTeam.name, ev.concedingTeam.name].sort()
+                const homeTeam = teams[0]
+                const awayTeam = teams[1]
+
+                const homeClass = homeTeam === ev.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+                const awayClass = awayTeam === ev.scoringTeam.name ? 'scoring-team' : 'conceding-team'
+
+                teamDisplay = `<span class="${homeClass}">${homeTeam}</span> <span class="vs-text">vs</span> <span class="${awayClass}">${awayTeam}</span>`
+              }
 
               // Add current score if available for history
               let currentScore = ''
@@ -174,7 +259,7 @@
                 dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
               }
 
-              li.innerHTML = `${minute}${teams}${currentScore}<br>${scorer}${dreamLeagueInfo}`
+              li.innerHTML = `${minute}${teamDisplay}${currentScore}<br>${scorer}${dreamLeagueInfo}`
               list.prepend(li)
             })
             toggleEmptyState()
