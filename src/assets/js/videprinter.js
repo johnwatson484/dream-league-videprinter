@@ -138,7 +138,14 @@
       dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
     }
 
-    li.innerHTML = `${minute}${teamDisplay}${currentScore}<br>${scorer}${dreamLeagueInfo}`
+    li.innerHTML = `
+      <div class="goal-header">
+        ${minute}${teamDisplay}${currentScore}
+      </div>
+      <div class="goal-details">
+        ${scorer}${dreamLeagueInfo}
+      </div>
+    `
 
     list.prepend(li)
     toggleEmptyState()
@@ -259,7 +266,14 @@
                 dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
               }
 
-              li.innerHTML = `${minute}${teamDisplay}${currentScore}<br>${scorer}${dreamLeagueInfo}`
+              li.innerHTML = `
+                <div class="goal-header">
+                  ${minute}${teamDisplay}${currentScore}
+                </div>
+                <div class="goal-details">
+                  ${scorer}${dreamLeagueInfo}
+                </div>
+              `
               list.prepend(li)
             })
             toggleEmptyState()

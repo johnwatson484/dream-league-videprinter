@@ -66,8 +66,17 @@
 }
 
 .goal-scorer {
-  color: #6f42c1;
-  font-weight: 500;
+  font-size: 0.95em;
+}
+
+.goal-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.goal-details {
+  margin-left: 2.5rem; /* Align with home team name - accounts for minute badge + margin */
 }
 
 .current-score {
@@ -161,6 +170,10 @@
   .goal-minute {
     font-size: 0.8em;
     margin-right: 6px;
+  }
+  
+  .goal-details {
+    margin-left: 2.25rem; /* Adjust alignment for smaller minute badge on mobile */
   }
   
   .d-flex.justify-content-between {
