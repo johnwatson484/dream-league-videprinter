@@ -98,7 +98,22 @@ export class FuzzyMatcher {
         matchType: 'player'
       }))
 
-    return results.filter(r => r.confidence > 0.5) // Lowered threshold for better matching
+    return results.filter(r => {
+      // Basic confidence check
+      if (r.confidence <= 0.5) return false
+
+      // Additional check: prevent very dissimilar names from matching
+      const scorerNormalized = this.normalizeName(scorerName)
+      const playerNormalized = this.normalizeName(r.player.name)
+
+      // If names share no common words and are very different lengths, reject
+      const scorerWords = scorerNormalized.split(' ').filter(w => w.length > 1)
+      const playerWords = playerNormalized.split(' ').filter(w => w.length > 1)
+      const commonWords = scorerWords.filter(w => playerWords.includes(w))
+
+      // Require at least one common word or high confidence
+      return commonWords.length > 0 || r.confidence > 0.8
+    })
   }
 
   /**
