@@ -159,7 +159,7 @@
   function fetchMissedEvents () {
     if (!lastEventTimestamp) return Promise.resolve()
 
-    return fetch('/videprinter/history?limit=100')
+    return fetch('/videprinter/history?limit=200')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data.events)) {
@@ -188,7 +188,7 @@
 
     if (!es) {
       // Load recent history only on first connect
-      fetch('/videprinter/history?limit=50')
+      fetch('/videprinter/history?limit=200')
         .then(r => r.json())
         .then(data => {
           if (Array.isArray(data.events)) {
