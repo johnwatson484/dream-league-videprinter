@@ -20,6 +20,10 @@
   border-bottom: none;
 }
 
+.videprinter-event.filtered-out {
+  display: none;
+}
+
 .videprinter-event.new-goal {
   animation: highlightGoal 1s ease-in-out;
   background: #d1ecf1;

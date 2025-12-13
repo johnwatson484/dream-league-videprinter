@@ -32,7 +32,7 @@ services:
 
 networks:
   dream-league:
-    external: true
+    driver: bridge
     name: dream-league
 
 volumes:

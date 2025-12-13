@@ -5,7 +5,9 @@
   const statusEl = document.getElementById('status')
   const pauseBtn = document.getElementById('toggle-pause')
   const emptyState = document.getElementById('empty-state')
+  const toggleAllGoals = document.getElementById('toggle-all-goals')
   let paused = false
+  let showAllGoals = false
   let es
   let retryDelay = 1000
   let lastHeartbeatTs = null
@@ -24,6 +26,24 @@
       pauseBtn.classList.add('btn-outline-secondary')
     }
   })
+
+  toggleAllGoals.addEventListener('change', () => {
+    showAllGoals = toggleAllGoals.checked
+    applyFilter()
+  })
+
+  function applyFilter () {
+    const events = list.querySelectorAll('.videprinter-event')
+    events.forEach(event => {
+      const hasDreamLeagueInfo = event.querySelector('.dream-league-info')
+      if (showAllGoals || hasDreamLeagueInfo) {
+        event.classList.remove('filtered-out')
+      } else {
+        event.classList.add('filtered-out')
+      }
+    })
+    toggleEmptyState()
+  }
 
   function updateStatus (text) {
     const fullText = text + (lastHeartbeatTs ? ` (last hb ${timeAgo(lastHeartbeatTs)})` : '')
@@ -48,8 +68,11 @@
   }
 
   function toggleEmptyState () {
-    const hasEvents = list.children.length > 0
-    emptyState.style.display = hasEvents ? 'none' : 'block'
+    const visibleEvents = Array.from(list.children).filter(child =>
+      !child.classList.contains('filtered-out')
+    )
+    const hasVisibleEvents = visibleEvents.length > 0
+    emptyState.style.display = hasVisibleEvents ? 'none' : 'block'
   }
 
   setInterval(() => {
@@ -146,6 +169,12 @@
         ${scorer}${dreamLeagueInfo}
       </div>
     `
+
+    // Apply filter state to new event
+    const hasDreamLeagueInfo = goal.potentialGoalFor || goal.potentialConcedingFor
+    if (!showAllGoals && !hasDreamLeagueInfo) {
+      li.classList.add('filtered-out')
+    }
 
     list.prepend(li)
     toggleEmptyState()
@@ -274,6 +303,13 @@
                   ${scorer}${dreamLeagueInfo}
                 </div>
               `
+
+              // Apply filter state to historical event
+              const hasDreamLeagueInfo = ev.potentialGoalFor || ev.potentialConcedingFor
+              if (!showAllGoals && !hasDreamLeagueInfo) {
+                li.classList.add('filtered-out')
+              }
+
               list.prepend(li)
             })
             toggleEmptyState()
