@@ -12,11 +12,7 @@ services:
       - LIVE_SCORE_SECRET=
     depends_on:
       - mongo
-    networks:
-      - dream-league
 
   mongo:
     image: mongo:7
     container_name: dream-league-videprinter-mongo
-    networks:
-      - dream-league

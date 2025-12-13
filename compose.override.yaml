@@ -19,6 +19,7 @@ services:
       USE_MOCK: ${USE_MOCK:-true}
       LIVE_SCORE_KEY: ${LIVE_SCORE_KEY}
       LIVE_SCORE_SECRET: ${LIVE_SCORE_SECRET}
+
   mongo:
     image: mongo:7
     container_name: dream-league-videprinter-mongo-dev

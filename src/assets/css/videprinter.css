@@ -164,7 +164,14 @@
 #videprinter-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+/* Fix form-switch overflow on mobile */
+.form-switch {
+  padding-left: 2.5rem !important;
+}
 
+.form-switch .form-check-input {
+  margin-left: -2.5rem !important;
+}
 @media (max-width: 768px) {
   .videprinter-event {
     padding: 10px 12px;
