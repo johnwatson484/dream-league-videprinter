@@ -131,11 +131,11 @@
     let dreamLeagueInfo = ''
     if (goal.potentialGoalFor) {
       const substitute = goal.potentialGoalFor.substitute ? ' (SUB)' : ''
-      dreamLeagueInfo += `<div class="dream-league-info potential-goal">Potential goal for <strong>${goal.potentialGoalFor.manager}</strong>${substitute}</div>`
+      dreamLeagueInfo += `<div class="dream-league-info potential-goal">Goal for <strong>${goal.potentialGoalFor.manager}</strong>${substitute}</div>`
     }
     if (goal.potentialConcedingFor) {
       const substitute = goal.potentialConcedingFor.substitute ? ' (SUB)' : ''
-      dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
+      dreamLeagueInfo += `<div class="dream-league-info potential-concede">Concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
     }
 
     li.innerHTML = `
@@ -259,11 +259,11 @@
               let dreamLeagueInfo = ''
               if (ev.potentialGoalFor) {
                 const substitute = ev.potentialGoalFor.substitute ? ' (SUB)' : ''
-                dreamLeagueInfo += `<div class="dream-league-info potential-goal">Potential goal for <strong>${ev.potentialGoalFor.manager}</strong>${substitute}</div>`
+                dreamLeagueInfo += `<div class="dream-league-info potential-goal">Goal for <strong>${ev.potentialGoalFor.manager}</strong>${substitute}</div>`
               }
               if (ev.potentialConcedingFor) {
                 const substitute = ev.potentialConcedingFor.substitute ? ' (SUB)' : ''
-                dreamLeagueInfo += `<div class="dream-league-info potential-concede">Potential concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
+                dreamLeagueInfo += `<div class="dream-league-info potential-concede">Concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
               }
 
               li.innerHTML = `
