@@ -26,17 +26,6 @@ export async function initMongo (logger = console) {
   await collection.createIndex({ utcTimestamp: -1 })
   // TTL index to automatically delete documents older than 24 hours
   await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 86400 }) // 24 hours = 86400 seconds
-  // One-time migration: convert any string utcTimestamp values to BSON Date
-  try {
-    await collection.updateMany(
-      { utcTimestamp: { $type: 'string' } },
-      [
-        { $set: { utcTimestamp: { $toDate: '$utcTimestamp' } } }
-      ]
-    )
-  } catch (e) {
-    safeLog('[mongo] utcTimestamp migration skipped', e?.message || e)
-  }
   // Register meta collection (for request counter & misc small docs)
   registerMetaCollection(db)
   safeLog('[mongo] connected')
