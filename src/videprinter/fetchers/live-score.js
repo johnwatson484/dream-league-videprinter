@@ -114,7 +114,7 @@ function normalizeGoal (match, rawGoal) {
     id: `${match.id}-${stableHash}`, // Use stable hash instead of changing eventId
     fixtureId: String(match.id),
     competition: match?.competition?.name || match.competition_name,
-    utcTimestamp: new Date().toISOString(),
+    utcTimestamp: new Date(),
     minute: parseInt(rawGoal.time, 10) || null,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
     concedingTeam: { name: scoringTeamGuess === names.home ? names.away : names.home },

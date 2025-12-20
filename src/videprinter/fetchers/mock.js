@@ -59,7 +59,7 @@ export async function fetchLiveGoals () {
     id: `${match.id}-${goalEventRaw.time}-${crypto.randomUUID()}`,
     fixtureId: String(match.id),
     competition: match.competition_name,
-    utcTimestamp: new Date().toISOString(),
+    utcTimestamp: new Date(),
     minute,
     scoringTeam: { name: scoringTeamIsHome ? home : away },
     concedingTeam: { name: scoringTeamIsHome ? away : home },
