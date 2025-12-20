@@ -158,7 +158,7 @@
     }
     if (goal.potentialConcedingFor) {
       const substitute = goal.potentialConcedingFor.substitute ? ' (SUB)' : ''
-      dreamLeagueInfo += `<div class="dream-league-info potential-concede">Concede for <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
+      dreamLeagueInfo += `<div class="dream-league-info potential-concede">Goal conceded by <strong>${goal.potentialConcedingFor.manager}</strong>${substitute}</div>`
     }
 
     li.innerHTML = `
@@ -292,7 +292,7 @@
               }
               if (ev.potentialConcedingFor) {
                 const substitute = ev.potentialConcedingFor.substitute ? ' (SUB)' : ''
-                dreamLeagueInfo += `<div class="dream-league-info potential-concede">Concede for <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
+                dreamLeagueInfo += `<div class="dream-league-info potential-concede">Goal conceded by <strong>${ev.potentialConcedingFor.manager}</strong>${substitute}</div>`
               }
 
               li.innerHTML = `
