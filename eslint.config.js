@@ -1,3 +1,12 @@
-import neoStandard from 'neostandard'
+import neostandard from 'neostandard'
 
-export default neoStandard({ globals: ['describe', 'beforeEach', 'expect', 'test', 'afterEach', 'jest', 'beforeAll', 'afterAll'] })
+export default [
+  ...neostandard({
+    globals: ['describe', 'beforeEach', 'expect', 'test', 'afterEach', 'vi', 'beforeAll', 'afterAll']
+  }),
+  {
+    rules: {
+      curly: ['error', 'all']
+    }
+  }
+]

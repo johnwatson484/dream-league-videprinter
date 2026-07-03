@@ -1,18 +1,45 @@
 services:
   dream-league-videprinter:
-    build: .
-    image: dream-league-videprinter
-    container_name: dream-league-videprinter
+    profiles:
+      - app
+    build:
+      context: .
+      target: development
+    ports:
+      - '3002:3002'
+      - '9231:9229'
+    volumes:
+      - ./src:/home/node/src
+      - ./package.json:/home/node/package.json
+    env_file:
+      - .env
     environment:
-      - MONGO_URI=mongodb://mongo:27017
-      - MONGO_DBNAME=dream-league-videprinter
-      - MONGO_ENABLED=true
-      - USE_MOCK=true # set to false to enable LiveScore provider
-      - LIVE_SCORE_KEY=
-      - LIVE_SCORE_SECRET=
+      MONGO_URI: mongodb://dream-league-videprinter-mongo:27017
     depends_on:
-      - mongo
+      dream-league-videprinter-mongo:
+        condition: service_healthy
+    networks:
+      - dream-league
 
-  mongo:
+  dream-league-videprinter-mongo:
     image: mongo:7
     container_name: dream-league-videprinter-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - dream-league
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  dream-league:
+    driver: bridge
+    name: dream-league
+
+volumes:
+  mongo_data:

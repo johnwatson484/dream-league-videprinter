@@ -3,20 +3,29 @@
   "version": "2.0.1",
   "description": "",
   "main": "src/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
-    "pretest": "npm run test:lint",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit",
-    "test:watch": "jest --coverage=false --onlyChanged --watch --runInBand",
+    "start": "NODE_ENV=production node src/index.js",
+    "dev": "NODE_ENV=development node --env-file-if-exists=.env --watch --watch-path=./src src/index.js",
+    "dev:debug": "NODE_ENV=development node --env-file-if-exists=.env --watch --watch-path=./src --inspect src/index.js",
+    "local": "npm run services:up && npm run dev",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down",
+    "docker:build": "docker compose --profile app build",
+    "docker:dev": "docker compose --profile app up",
+    "test": "cross-env TZ=UTC vitest run --coverage",
+    "test:unit": "cross-env TZ=UTC vitest run --coverage --project unit",
+    "test:integration": "cross-env TZ=UTC vitest run --coverage --project integration",
+    "test:watch": "cross-env TZ=UTC vitest",
+    "test:debug": "cross-env TZ=UTC vitest --inspect --no-file-parallelism",
     "test:lint": "eslint",
-    "lint:fix": "eslint --fix",
-    "test:debug": "node --inspect-brk=0.0.0.0 ./node_modules/jest/bin/jest.js --coverage=false --onlyChanged --watch --runInBand --no-cache",
-    "start": "node src",
-    "start:watch": "nodemon --inspect=0.0.0.0 --ext js,css,njk --legacy-watch src/index.js",
-    "start:debug": "nodemon --inspect-brk=0.0.0.0 --ext js,css,njk --legacy-watch src/index.js"
+    "test:lint:fix": "eslint --fix"
   },
   "author": "John Watson",
   "license": "MIT",
-  "type": "module",
   "dependencies": {
     "@hapi/boom": "10.0.1",
     "@hapi/crumb": "9.0.1",
@@ -36,16 +45,10 @@
     "semver": "7.7.2"
   },
   "devDependencies": {
-    "blipp": "4.0.2",
+    "@vitest/coverage-v8": "4.1.9",
+    "cross-env": "10.1.0",
     "eslint": "9.36.0",
-    "jest": "29.7.0",
-    "jest-junit": "17.0.0",
     "neostandard": "0.11.4",
-    "nodemon": "3.1.4"
-  },
-  "nodemonConfig": {
-    "ignore": [
-      "**/test-output/**"
-    ]
+    "vitest": "4.1.9"
   }
 }

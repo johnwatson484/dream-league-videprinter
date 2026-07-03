@@ -1,4 +1,4 @@
-import { createServer } from '../src/server.js'
+import { createServer } from '../../src/server.js'
 
 describe('health test', () => {
   let server
@@ -11,7 +11,7 @@ describe('health test', () => {
   test('GET /healthy route returns 200', async () => {
     const options = {
       method: 'GET',
-      url: '/healthy',
+      url: '/healthy'
     }
     const response = await server.inject(options)
     expect(response.statusCode).toBe(200)
@@ -20,7 +20,7 @@ describe('health test', () => {
   test('GET /healthz route returns 200', async () => {
     const options = {
       method: 'GET',
-      url: '/healthz',
+      url: '/healthz'
     }
     const response = await server.inject(options)
     expect(response.statusCode).toBe(200)

@@ -1,13 +1,5 @@
-node_modules/
-test-output/
-scripts/
-helm/
-.vscode/
-.dockerignore
-.gitignore
-compose*
-LICENSE
-README.md
+node_modules
 Dockerfile
-npm-debug.log
-azure-pipelines.yaml
+coverage
+**/*.test.js
+.env

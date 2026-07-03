@@ -10,7 +10,7 @@ class EventCache {
   has (id) { return this.ids.has(id) }
 
   add (id) {
-    if (this.ids.has(id)) return
+    if (this.ids.has(id)) { return }
     this.ids.add(id)
     this.queue.push(id)
     if (this.queue.length > this.max) {

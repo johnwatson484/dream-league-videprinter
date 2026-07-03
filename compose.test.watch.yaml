@@ -1,5 +1,0 @@
-services:
-  dream-league-videprinter:
-    command: npm run test:watch
-    volumes:
-      - ./.git:/home/node/.git
