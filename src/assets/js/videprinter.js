@@ -62,8 +62,8 @@
     }
   } function timeAgo (ts) {
     const d = Date.now() - ts
-    if (d < 2000) return '1s'
-    if (d < 60000) return Math.floor(d / 1000) + 's'
+    if (d < 2000) { return '1s' }
+    if (d < 60000) { return Math.floor(d / 1000) + 's' }
     return Math.floor(d / 60000) + 'm'
   }
 
@@ -82,10 +82,10 @@
   }, 5000)
 
   function prependEvent (goal) {
-    if (paused) return
+    if (paused) { return }
 
     // Skip if we've already seen this event
-    if (knownEventIds.has(goal.id)) return
+    if (knownEventIds.has(goal.id)) { return }
 
     // Track this event
     knownEventIds.add(goal.id)
@@ -186,7 +186,7 @@
   }
 
   function fetchMissedEvents () {
-    if (!lastEventTimestamp) return Promise.resolve()
+    if (!lastEventTimestamp) { return Promise.resolve() }
 
     return fetch('/videprinter/history?limit=200')
       .then(r => r.json())
@@ -336,7 +336,7 @@
     })
     es.addEventListener('heartbeat', () => {
       lastHeartbeatTs = Date.now()
-      if (!paused) updateStatus('Live')
+      if (!paused) { updateStatus('Live') }
     })
   }
 

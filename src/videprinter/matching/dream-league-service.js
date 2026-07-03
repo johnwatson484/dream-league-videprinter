@@ -30,10 +30,10 @@ class DreamLeagueService {
     const now = Date.now()
 
     // Avoid concurrent updates
-    if (this.isUpdating) return
+    if (this.isUpdating) { return }
 
     // Check if update is needed
-    if (now - this.lastUpdateTime < this.updateInterval) return
+    if (now - this.lastUpdateTime < this.updateInterval) { return }
 
     this.isUpdating = true
 

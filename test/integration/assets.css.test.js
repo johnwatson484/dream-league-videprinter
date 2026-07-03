@@ -1,4 +1,4 @@
-import { createServer } from '../src/server.js'
+import { createServer } from '../../src/server.js'
 
 describe('assets css', () => {
   test('serves videprinter.css with text/css mime', async () => {

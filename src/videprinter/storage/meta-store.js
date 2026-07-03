@@ -10,6 +10,6 @@ export function registerMetaCollection (db) {
 export function getMetaStore () { return metaCollection }
 
 export async function upsertMeta (id, value) {
-  if (!metaCollection) return
+  if (!metaCollection) { return }
   await metaCollection.updateOne({ _id: id }, { $set: { ...value } }, { upsert: true })
 }

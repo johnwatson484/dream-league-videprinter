@@ -16,7 +16,7 @@ class EventsStore {
   list (options = {}) {
     const { limit = 100, order = 'desc' } = options
     const slice = this.events.slice(-limit)
-    if (order === 'desc') return slice.slice().reverse()
+    if (order === 'desc') { return slice.slice().reverse() }
     return slice
   }
 }

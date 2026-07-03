@@ -61,7 +61,7 @@ export class FuzzyMatcher {
    * Normalize a name for better matching (remove common prefixes/suffixes, standardize format)
    */
   normalizeName (name) {
-    if (!name) return ''
+    if (!name) { return '' }
 
     return name
       .toLowerCase()
@@ -77,7 +77,7 @@ export class FuzzyMatcher {
    * Returns array of matches with confidence scores
    */
   findPlayerMatches (scorerName, scoringTeam) {
-    if (!this.playerFuse || !scorerName) return []
+    if (!this.playerFuse || !scorerName) { return [] }
 
     // First try exact/fuzzy name matching
     const nameMatches = this.playerFuse.search(scorerName)
@@ -86,9 +86,9 @@ export class FuzzyMatcher {
     const results = nameMatches
       .filter(match => {
         // Exclude substitutes from matches
-        if (match.item.substitute) return false
+        if (match.item.substitute) { return false }
 
-        if (!scoringTeam) return true
+        if (!scoringTeam) { return true }
         // Use fuzzy team matching instead of exact
         return this.isTeamMatch(match.item.team, scoringTeam)
       })
@@ -100,7 +100,7 @@ export class FuzzyMatcher {
 
     return results.filter(r => {
       // Basic confidence check
-      if (r.confidence <= 0.5) return false
+      if (r.confidence <= 0.5) { return false }
 
       // Additional check: prevent very dissimilar names from matching
       const scorerNormalized = this.normalizeName(scorerName)
@@ -121,14 +121,14 @@ export class FuzzyMatcher {
    * Returns array of matches with manager information
    */
   findGoalkeeperMatches (concedingTeam) {
-    if (!this.teamFuse || !concedingTeam) return []
+    if (!this.teamFuse || !concedingTeam) { return [] }
 
     const teamMatches = this.teamFuse.search(concedingTeam)
 
     return teamMatches
       .filter(match => {
         // Exclude substitutes from matches
-        if (match.item.substitute) return false
+        if (match.item.substitute) { return false }
 
         return (1 - match.score) > 0.7 // High confidence for team matches
       })
@@ -143,7 +143,7 @@ export class FuzzyMatcher {
    * Check if two team names are likely the same team
    */
   isTeamMatch (team1, team2) {
-    if (!team1 || !team2) return false
+    if (!team1 || !team2) { return false }
 
     const normalized1 = this.normalizeName(team1)
     const normalized2 = this.normalizeName(team2)

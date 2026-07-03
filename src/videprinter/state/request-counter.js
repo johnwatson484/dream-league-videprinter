@@ -8,7 +8,7 @@ let count = 0
 let loaded = false
 
 async function ensureLoaded () {
-  if (loaded) return
+  if (loaded) { return }
   const store = getMetaStore()
   if (!store) { loaded = true; return }
   const doc = await store.findOne({ _id: 'dailyRequestCounter' })
@@ -36,7 +36,7 @@ export async function noteExternalRequest () {
   }
   count++
   const store = getMetaStore()
-  if (store) await upsertMeta('dailyRequestCounter', { dateKey, count })
+  if (store) { await upsertMeta('dailyRequestCounter', { dateKey, count }) }
   return count
 }
 

@@ -1,4 +1,4 @@
-import { createServer } from '../src/server.js'
+import { createServer } from '../../src/server.js'
 
 describe('home test', () => {
   let server
@@ -11,7 +11,7 @@ describe('home test', () => {
   test('GET /home route redirects to /live-scores', async () => {
     const options = {
       method: 'GET',
-      url: '/',
+      url: '/'
     }
     const response = await server.inject(options)
     expect(response.statusCode).toBe(302)

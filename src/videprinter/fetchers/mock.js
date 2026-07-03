@@ -16,8 +16,8 @@ export async function fetchLiveGoals () {
   const ds = config.get('dataSource')
   const comps = ds.liveScore.competitions
   const compEntries = Object.entries(comps)
-  if (!compEntries.length) return []
-  if (Math.random() >= 0.2) return [] // 20% chance to emit a goal batch of size 1
+  if (!compEntries.length) { return [] }
+  if (Math.random() >= 0.2) { return [] } // 20% chance to emit a goal batch of size 1
 
   const compEntry = pick(compEntries) // [key, id]
   const competitionNameMap = {
@@ -32,7 +32,7 @@ export async function fetchLiveGoals () {
 
   const home = pick(TEAM_NAMES)
   let away = pick(TEAM_NAMES)
-  while (away === home) away = pick(TEAM_NAMES)
+  while (away === home) { away = pick(TEAM_NAMES) }
   const scoringTeamIsHome = Math.random() < 0.5
   const scorer = pick(SCORERS)
   const minute = Math.floor(Math.random() * 90) + 1

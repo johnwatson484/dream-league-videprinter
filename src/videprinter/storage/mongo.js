@@ -8,8 +8,8 @@ let collection
 export async function initMongo (logger = console) {
   const safeLog = (msg, ...rest) => {
     try {
-      if (logger && typeof logger.info === 'function') return logger.info(msg, ...rest)
-      if (logger && typeof logger.log === 'function') return logger.log(msg, ...rest)
+      if (logger && typeof logger.info === 'function') { return logger.info(msg, ...rest) }
+      if (logger && typeof logger.log === 'function') { return logger.log(msg, ...rest) }
       return console.log(msg, ...rest)
     } catch { console.log(msg, ...rest) }
   }
@@ -33,7 +33,7 @@ export async function initMongo (logger = console) {
 }
 
 export async function saveEvents (events = [], logger = console) {
-  if (!collection || !events.length) return
+  if (!collection || !events.length) { return }
   const ops = events.map(e => ({ updateOne: { filter: { id: e.id }, update: { $setOnInsert: e }, upsert: true } }))
   try {
     await collection.bulkWrite(ops, { ordered: false })
@@ -43,7 +43,7 @@ export async function saveEvents (events = [], logger = console) {
 }
 
 export async function fetchRecentEvents (limit = 100) {
-  if (!collection) return []
+  if (!collection) { return [] }
   // Sort by timestamp (descending, latest first)
   const docs = await collection.find({}, { projection: { _id: 0 } })
     .sort({ utcTimestamp: -1 })
@@ -53,7 +53,7 @@ export async function fetchRecentEvents (limit = 100) {
 }
 
 export async function eventExists (eventId) {
-  if (!collection) return false
+  if (!collection) { return false }
   try {
     const count = await collection.countDocuments({ id: eventId }, { limit: 1 })
     return count > 0
@@ -64,7 +64,7 @@ export async function eventExists (eventId) {
 }
 
 export async function batchCheckEventExists (eventIds = []) {
-  if (!collection || !eventIds.length) return new Set()
+  if (!collection || !eventIds.length) { return new Set() }
   try {
     const existingDocs = await collection.find(
       { id: { $in: eventIds } },
@@ -78,5 +78,5 @@ export async function batchCheckEventExists (eventIds = []) {
 }
 
 export async function closeMongo () {
-  if (client) await client.close()
+  if (client) { await client.close() }
 }
