@@ -1,6 +1,6 @@
 // Mock fetcher returns synthetic goal events in the SAME format as the live-score fetcher normalization
-import crypto from 'crypto'
-import config from '../../config.js'
+import crypto from 'node:crypto'
+import config from '../../config.ts'
 
 const TEAM_NAMES = [
   'Barnsley', 'Bolton', 'Derby', 'Portsmouth', 'Oxford', 'Blackpool',

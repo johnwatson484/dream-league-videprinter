@@ -1,8 +1,8 @@
-import path from 'path'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import nunjucks from 'nunjucks'
 import Vision from '@hapi/vision'
-import config from '../config.js'
+import config from '../config.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

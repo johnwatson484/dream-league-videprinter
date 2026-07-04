@@ -9,7 +9,7 @@ const coverageConfig = {
   reportsDirectory: './coverage',
   clean: false,
   reporter: ['text', 'lcov'],
-  include: ['src/**/*.js'],
+  include: ['src/**/*.ts'],
   exclude: [
     ...configDefaults.exclude,
     '**/test/**',
@@ -26,7 +26,7 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['test/unit/**/*.test.js'],
+          include: ['test/unit/**/*.test.ts'],
           globals: true,
           clearMocks: true,
           environment: 'node',
@@ -36,7 +36,7 @@ export default defineConfig({
       {
         test: {
           name: 'integration',
-          include: ['test/integration/**/*.test.js'],
+          include: ['test/integration/**/*.test.ts'],
           globals: true,
           clearMocks: true,
           environment: 'node',

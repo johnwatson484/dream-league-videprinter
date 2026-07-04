@@ -1,8 +1,8 @@
 import 'log-timestamp'
-import { createServer } from './server.js'
-import { startPoller } from './videprinter/poller/index.js'
-import { dreamLeagueService } from './videprinter/matching/dream-league-service.js'
-import config from './config.js'
+import { createServer } from './server.ts'
+import { startPoller } from './videprinter/poller/index.ts'
+import { dreamLeagueService } from './videprinter/matching/dream-league-service.ts'
+import config from './config.ts'
 
 const init = async () => {
   const server = await createServer()

@@ -4,6 +4,11 @@ import Fuse from 'fuse.js'
  * Fuzzy matching service for players and teams using fuse.js
  */
 export class FuzzyMatcher {
+  playerFuse
+  teamFuse
+  players
+  goalkeepers
+
   constructor () {
     this.playerFuse = null
     this.teamFuse = null

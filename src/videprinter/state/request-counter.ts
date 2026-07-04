@@ -1,7 +1,7 @@
 // Persistent (Mongo-backed when available) daily request counter.
 // Falls back to in-memory if Mongo disabled.
-import config from '../../config.js'
-import { getMetaStore, upsertMeta } from '../storage/meta-store.js'
+import config from '../../config.ts'
+import { getMetaStore, upsertMeta } from '../storage/meta-store.ts'
 
 let dateKey = new Date().toISOString().slice(0, 10)
 let count = 0

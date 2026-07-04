@@ -1,6 +1,6 @@
-import { eventsStore } from '../../videprinter/state/events-store.js'
-import config from '../../config.js'
-import { fetchRecentEvents } from '../../videprinter/storage/mongo.js'
+import { eventsStore } from '../../videprinter/state/events-store.ts'
+import config from '../../config.ts'
+import { fetchRecentEvents } from '../../videprinter/storage/mongo.ts'
 
 const route = {
   method: 'GET',

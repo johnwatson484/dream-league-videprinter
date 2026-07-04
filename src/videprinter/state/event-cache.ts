@@ -1,6 +1,10 @@
 // Simple in-memory cache of last seen goal ids to prevent duplicates
 
 class EventCache {
+  max
+  ids
+  queue
+
   constructor (max = 1000) {
     this.max = max
     this.ids = new Set()

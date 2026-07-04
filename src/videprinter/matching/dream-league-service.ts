@@ -1,10 +1,14 @@
-import { fetchDreamLeagueTeams } from '../fetchers/dream-league.js'
-import { fuzzyMatcher } from './fuzzy-matcher.js'
+import { fetchDreamLeagueTeams } from '../fetchers/dream-league.ts'
+import { fuzzyMatcher } from './fuzzy-matcher.ts'
 
 /**
  * Service to enhance goals with Dream League Fantasy Football data
  */
 class DreamLeagueService {
+  lastUpdateTime
+  updateInterval
+  isUpdating
+
   constructor () {
     this.lastUpdateTime = 0
     this.updateInterval = 5 * 60 * 1000 // 5 minutes

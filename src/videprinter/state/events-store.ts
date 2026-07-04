@@ -1,6 +1,9 @@
 // In-memory ring buffer of recent goal events for replay on new connections / refresh.
 
 class EventsStore {
+  limit
+  events
+
   constructor (limit = 500) {
     this.limit = limit
     this.events = [] // oldest -> newest
@@ -13,7 +16,7 @@ class EventsStore {
     }
   }
 
-  list (options = {}) {
+  list (options = { limit: 100, order: 'desc' }) {
     const { limit = 100, order = 'desc' } = options
     const slice = this.events.slice(-limit)
     if (order === 'desc') { return slice.slice().reverse() }

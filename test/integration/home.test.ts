@@ -1,4 +1,4 @@
-import { createServer } from '../../src/server.js'
+import { createServer } from '../../src/server.ts'
 
 describe('home test', () => {
   let server
