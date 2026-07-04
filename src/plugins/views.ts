@@ -21,7 +21,7 @@ const plugin = {
         prepare: (options, next) => {
           options.compileOptions.environment = nunjucks.configure(path.join(options.relativeTo || process.cwd(), options.path), {
             autoescape: true,
-            watch: config.get('isDev'),
+            watch: false,
           })
 
           return next()
