@@ -1,4 +1,4 @@
-import { videprinterBroadcaster } from '../../videprinter/state/broadcaster.js'
+import { videprinterBroadcaster } from '../../videprinter/state/broadcaster.ts'
 import { PassThrough } from 'node:stream'
 
 function writeEvent (res, event, dataObj) {

@@ -1,5 +1,5 @@
-import { createServer } from '../../src/server.js'
-import { eventsStore } from '../../src/videprinter/state/events-store.js'
+import { createServer } from '../../src/server.ts'
+import { eventsStore } from '../../src/videprinter/state/events-store.ts'
 
 describe('videprinter history', () => {
   test('returns recent events', async () => {

@@ -1,11 +1,11 @@
-import config from '../../config.js'
-import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.js'
-import { fetchLiveScoreGoals } from '../fetchers/live-score.js'
-import { videprinterBroadcaster } from '../state/broadcaster.js'
-import { eventsStore } from '../state/events-store.js'
-import { saveEvents } from '../storage/mongo.js'
-import { remainingRequestsToday } from '../state/request-counter.js'
-import { dreamLeagueService } from '../matching/dream-league-service.js'
+import config from '../../config.ts'
+import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
+import { fetchLiveScoreGoals } from '../fetchers/live-score.ts'
+import { videprinterBroadcaster } from '../state/broadcaster.ts'
+import { eventsStore } from '../state/events-store.ts'
+import { saveEvents } from '../storage/mongo.ts'
+import { remainingRequestsToday } from '../state/request-counter.ts'
+import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
 function isQuietHours () {
   const { quietHoursStart, quietHoursEnd } = config.get('videprinter')

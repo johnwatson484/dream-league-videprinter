@@ -1,7 +1,7 @@
-import home from '../routes/home.js'
-import assets from '../routes/assets.js'
-import health from '../routes/health.js'
-import videprinter from '../routes/videprinter/index.js'
+import home from '../routes/home.ts'
+import assets from '../routes/assets.ts'
+import health from '../routes/health.ts'
+import videprinter from '../routes/videprinter/index.ts'
 
 const plugin = {
   name: 'router',

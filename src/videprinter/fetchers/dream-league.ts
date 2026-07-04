@@ -1,4 +1,4 @@
-import config from '../../config.js'
+import config from '../../config.ts'
 
 let cachedTeamData = null
 let lastFetchTime = 0

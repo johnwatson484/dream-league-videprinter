@@ -1,4 +1,4 @@
-import { FuzzyMatcher } from '../../src/videprinter/matching/fuzzy-matcher.js'
+import { FuzzyMatcher } from '../../src/videprinter/matching/fuzzy-matcher.ts'
 
 describe('FuzzyMatcher', () => {
   let fuzzyMatcher

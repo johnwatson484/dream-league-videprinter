@@ -1,6 +1,6 @@
 import { MongoClient } from 'mongodb'
-import config from '../../config.js'
-import { registerMetaCollection } from './meta-store.js'
+import config from '../../config.ts'
+import { registerMetaCollection } from './meta-store.ts'
 
 let client
 let collection

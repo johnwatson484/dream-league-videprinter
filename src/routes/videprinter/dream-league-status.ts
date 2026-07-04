@@ -1,4 +1,4 @@
-import { dreamLeagueService } from '../../videprinter/matching/dream-league-service.js'
+import { dreamLeagueService } from '../../videprinter/matching/dream-league-service.ts'
 
 const route = {
   method: 'GET',

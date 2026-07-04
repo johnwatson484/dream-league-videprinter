@@ -1,7 +1,7 @@
-import config from '../../config.js'
-import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.js'
-import { batchCheckEventExists } from '../storage/mongo.js'
-import crypto from 'crypto'
+import config from '../../config.ts'
+import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.ts'
+import { batchCheckEventExists } from '../storage/mongo.ts'
+import crypto from 'node:crypto'
 
 /*
  LiveScore API docs: https://live-score-api.com/documentation
@@ -198,7 +198,7 @@ async function collectGoals (matches, shouldLog, liveCreds) {
   }
 
   // Sort goals by timestamp (latest first)
-  goals.sort((a, b) => new Date(b.utcTimestamp) - new Date(a.utcTimestamp))
+  goals.sort((a, b) => new Date(b.utcTimestamp).getTime() - new Date(a.utcTimestamp).getTime())
 
   if (shouldLog) { console.log('[live-score] goals emitted=%d (sorted by latest timestamp)', goals.length) }
   return goals

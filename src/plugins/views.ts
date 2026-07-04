@@ -1,8 +1,8 @@
-import path from 'path'
-import { fileURLToPath } from 'url'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import nunjucks from 'nunjucks'
 import Vision from '@hapi/vision'
-import config from '../config.js'
+import config from '../config.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -21,7 +21,7 @@ const plugin = {
         prepare: (options, next) => {
           options.compileOptions.environment = nunjucks.configure(path.join(options.relativeTo || process.cwd(), options.path), {
             autoescape: true,
-            watch: config.get('isDev'),
+            watch: false,
           })
 
           return next()

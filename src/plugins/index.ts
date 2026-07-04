@@ -1,12 +1,12 @@
 import Inert from '@hapi/inert'
 import Crumb from '@hapi/crumb'
-import logging from './logging.js'
+import logging from './logging.ts'
 import Scooter from '@hapi/scooter'
-import csp from './content-security-policy.js'
-import headers from './headers.js'
-import errors from './errors.js'
-import views from './views.js'
-import router from './router.js'
+import csp from './content-security-policy.ts'
+import headers from './headers.ts'
+import errors from './errors.ts'
+import views from './views.ts'
+import router from './router.ts'
 
 async function registerPlugins (server) {
   const plugins = [
