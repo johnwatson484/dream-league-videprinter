@@ -1,10 +1,11 @@
+import type { GoalEvent } from '../../src/videprinter/types.ts'
 import { createServer } from '../../src/server.ts'
 import { eventsStore } from '../../src/videprinter/state/events-store.ts'
 
 describe('videprinter history', () => {
   test('returns recent events', async () => {
     const server = await createServer()
-    eventsStore.add({ id: '1', scoringTeam: { name: 'A' }, concedingTeam: { name: 'B' }, scorer: { name: 'X' }, minute: 1 })
+    eventsStore.add({ id: '1', fixtureId: '1', competition: 'Test', utcTimestamp: new Date(), minute: 1, scoringTeam: { name: 'A' }, concedingTeam: { name: 'B' }, scorer: { name: 'X', normalizedName: 'x' }, assist: null, scoreAfterEvent: { home: 1, away: 0 }, phase: 'LIVE', source: 'test' } satisfies GoalEvent)
     const res = await server.inject({ method: 'GET', url: '/videprinter/history?limit=10' })
     expect(res.statusCode).toBe(200)
     const body = JSON.parse(res.payload)

@@ -1,10 +1,12 @@
-const plugin = {
+import type { Plugin, ServerOptions } from '@hapi/hapi'
+
+const plugin: Plugin<ServerOptions> = {
   name: 'errors',
-  register: (server, options) => {
+  register: (server) => {
     server.ext('onPreResponse', (request, h) => {
       const response = request.response
 
-      if (response.isBoom) {
+      if ('isBoom' in response && response.isBoom) {
         const statusCode = response.output.statusCode
 
         if (statusCode === 404) {

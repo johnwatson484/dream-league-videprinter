@@ -1,15 +1,15 @@
-// Meta store relies on mongo.js having initialized and provided DB reference.
+import type { Collection, Db } from 'mongodb'
 
-let metaCollection
+let metaCollection: Collection | undefined
 
-export function registerMetaCollection (db) {
+export function registerMetaCollection (db: Db): void {
   metaCollection = db.collection('meta')
   metaCollection.createIndex({ _id: 1 }, { unique: true }).catch(() => {})
 }
 
-export function getMetaStore () { return metaCollection }
+export function getMetaStore (): Collection | undefined { return metaCollection }
 
-export async function upsertMeta (id, value) {
+export async function upsertMeta (id: string, value: Record<string, unknown>): Promise<void> {
   if (!metaCollection) { return }
-  await metaCollection.updateOne({ _id: id }, { $set: { ...value } }, { upsert: true })
+  await metaCollection.updateOne({ _id: id } as any, { $set: { ...value } }, { upsert: true })
 }

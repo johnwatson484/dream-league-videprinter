@@ -1,3 +1,4 @@
 declare module 'blankie'
 declare module 'log-timestamp'
-declare module 'convict-format-with-validator'
+declare module '@hapi/crumb'
+declare module 'nunjucks'

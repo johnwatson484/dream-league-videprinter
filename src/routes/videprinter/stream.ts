@@ -1,13 +1,15 @@
+import type { ServerRoute } from '@hapi/hapi'
+import type { GoalEvent } from '../../videprinter/types.ts'
 import { videprinterBroadcaster } from '../../videprinter/state/broadcaster.ts'
 import { PassThrough } from 'node:stream'
 
-function writeEvent (res, event, dataObj) {
+function writeEvent (res: PassThrough, event: string, dataObj: string | object): void {
   const payload = typeof dataObj === 'string' ? dataObj : JSON.stringify(dataObj)
   res.write(`event: ${event}\n`)
   res.write(`data: ${payload}\n\n`)
 }
 
-const route = {
+const route: ServerRoute = {
   method: 'GET',
   path: '/videprinter/stream',
   options: {
@@ -37,16 +39,13 @@ const route = {
       .type('text/event-stream')
       .header('Cache-Control', 'no-cache, no-transform')
       .header('Connection', 'keep-alive')
-      // Prevent proxy buffering (NGINX, etc.) and compression which can delay SSE delivery
       .header('X-Accel-Buffering', 'no')
       .header('Content-Encoding', 'identity')
 
-    // Initial comment to force headers flush in some proxies
     stream.write(': connected\n\n')
-    // initial event
     writeEvent(stream, 'connected', { type: 'init', ts: new Date().toISOString() })
-    const onGoal = (event) => writeEvent(stream, 'goal', event)
-    const onHeartbeat = () => writeEvent(stream, 'heartbeat', { ts: new Date().toISOString() })
+    const onGoal = (event: GoalEvent): void => { writeEvent(stream, 'goal', event) }
+    const onHeartbeat = (): void => { writeEvent(stream, 'heartbeat', { ts: new Date().toISOString() }) }
     videprinterBroadcaster.on('goal', onGoal)
     videprinterBroadcaster.on('heartbeat', onHeartbeat)
     request.raw.req.on('close', () => {

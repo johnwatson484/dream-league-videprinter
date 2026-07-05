@@ -1,3 +1,4 @@
+import type { Server } from '@hapi/hapi'
 import Inert from '@hapi/inert'
 import Crumb from '@hapi/crumb'
 import logging from './logging.ts'
@@ -8,8 +9,8 @@ import errors from './errors.ts'
 import views from './views.ts'
 import router from './router.ts'
 
-async function registerPlugins (server) {
-  const plugins = [
+async function registerPlugins (server: Server): Promise<void> {
+  const plugins: any[] = [
     Inert,
     Crumb,
     Scooter,

@@ -1,6 +1,7 @@
+import type { ServerRoute } from '@hapi/hapi'
 import { dreamLeagueService } from '../../videprinter/matching/dream-league-service.ts'
 
-const route = {
+const route: ServerRoute = {
   method: 'GET',
   path: '/videprinter/dream-league/status',
   options: {
@@ -16,7 +17,7 @@ const route = {
       const status = dreamLeagueService.getStatus()
       return h.response(status).code(200)
     } catch (error) {
-      request.logger?.error('[dream-league] status error:', error.message)
+      request.logger?.error('[dream-league] status error:', (error as Error).message)
       return h.response({ error: 'Failed to get Dream League status' }).code(500)
     }
   }

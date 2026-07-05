@@ -1,3 +1,4 @@
+import type { ServerRegisterPluginObject } from '@hapi/hapi'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import nunjucks from 'nunjucks'
@@ -6,19 +7,19 @@ import config from '../config.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const plugin = {
+const plugin: ServerRegisterPluginObject<any> = {
   plugin: Vision,
   options: {
     engines: {
       njk: {
-        compile: (src, options) => {
+        compile: (src: string, options: any) => {
           const template = nunjucks.compile(src, options.environment)
 
-          return (context) => {
+          return (context: any) => {
             return template.render(context)
           }
         },
-        prepare: (options, next) => {
+        prepare: (options: any, next: () => void) => {
           options.compileOptions.environment = nunjucks.configure(path.join(options.relativeTo || process.cwd(), options.path), {
             autoescape: true,
             watch: false,

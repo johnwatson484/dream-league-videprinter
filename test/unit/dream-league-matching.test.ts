@@ -1,13 +1,13 @@
+import type { DreamLeaguePlayer, DreamLeagueGoalkeeper } from '../../src/videprinter/types.ts'
 import { FuzzyMatcher } from '../../src/videprinter/matching/fuzzy-matcher.ts'
 
 describe('FuzzyMatcher', () => {
-  let fuzzyMatcher
+  let fuzzyMatcher: FuzzyMatcher
 
   beforeEach(() => {
     fuzzyMatcher = new FuzzyMatcher()
 
-    // Mock Dream League data
-    const players = [
+    const players: DreamLeaguePlayer[] = [
       {
         playerId: 2537,
         name: 'Allen, Taylor',
@@ -42,7 +42,7 @@ describe('FuzzyMatcher', () => {
       }
     ]
 
-    const goalkeepers = [
+    const goalkeepers: DreamLeagueGoalkeeper[] = [
       {
         teamId: 18,
         name: 'Blackburn Rovers',
@@ -70,17 +70,17 @@ describe('FuzzyMatcher', () => {
     const matches = fuzzyMatcher.findPlayerMatches('Fletcher, Ashley', 'Blackpool')
 
     expect(matches).toHaveLength(1)
-    expect(matches[0].player.name).toBe('Fletcher, Ashley')
-    expect(matches[0].player.manager).toBe('Billy Gordon')
-    expect(matches[0].confidence).toBeGreaterThan(0.8)
+    expect(matches[0]!.player.name).toBe('Fletcher, Ashley')
+    expect(matches[0]!.player.manager).toBe('Billy Gordon')
+    expect(matches[0]!.confidence).toBeGreaterThan(0.8)
   })
 
   test('finds fuzzy player name matches', () => {
     const matches = fuzzyMatcher.findPlayerMatches('Ashley Fletcher', 'Blackpool')
 
     expect(matches.length).toBeGreaterThan(0)
-    expect(matches[0].player.name).toBe('Fletcher, Ashley')
-    expect(matches[0].confidence).toBeGreaterThan(0.3)
+    expect(matches[0]!.player.name).toBe('Fletcher, Ashley')
+    expect(matches[0]!.confidence).toBeGreaterThan(0.3)
   })
 
   test('filters by team when provided', () => {
@@ -94,15 +94,15 @@ describe('FuzzyMatcher', () => {
     const matches = fuzzyMatcher.findGoalkeeperMatches('Blackburn Rovers')
 
     expect(matches).toHaveLength(1)
-    expect(matches[0].team.name).toBe('Blackburn Rovers')
-    expect(matches[0].team.manager).toBe('Billy Gordon')
+    expect(matches[0]!.team.name).toBe('Blackburn Rovers')
+    expect(matches[0]!.team.manager).toBe('Billy Gordon')
   })
 
   test('handles fuzzy team name matching', () => {
     const matches = fuzzyMatcher.findGoalkeeperMatches('Blackburn')
 
     expect(matches).toHaveLength(1)
-    expect(matches[0].team.name).toBe('Blackburn Rovers')
+    expect(matches[0]!.team.name).toBe('Blackburn Rovers')
   })
 
   test('normalizes names correctly', () => {
@@ -144,7 +144,7 @@ describe('FuzzyMatcher', () => {
     const matches = fuzzyMatcher.findPlayerMatches('Fletcher, Ashley', 'Blackpool')
 
     expect(matches).toHaveLength(1)
-    expect(matches[0].player.substitute).toBe(false)
+    expect(matches[0]!.player.substitute).toBe(false)
   })
 
   test('includes non-substitute goalkeepers in matches', () => {
@@ -152,6 +152,6 @@ describe('FuzzyMatcher', () => {
     const matches = fuzzyMatcher.findGoalkeeperMatches('Blackburn Rovers')
 
     expect(matches).toHaveLength(1)
-    expect(matches[0].team.substitute).toBe(false)
+    expect(matches[0]!.team.substitute).toBe(false)
   })
 })

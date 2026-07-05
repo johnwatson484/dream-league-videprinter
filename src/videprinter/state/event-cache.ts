@@ -1,9 +1,7 @@
-// Simple in-memory cache of last seen goal ids to prevent duplicates
-
 class EventCache {
-  max
-  ids
-  queue
+  max: number
+  ids: Set<string>
+  queue: string[]
 
   constructor (max = 1000) {
     this.max = max
@@ -11,15 +9,15 @@ class EventCache {
     this.queue = []
   }
 
-  has (id) { return this.ids.has(id) }
+  has (id: string): boolean { return this.ids.has(id) }
 
-  add (id) {
+  add (id: string): void {
     if (this.ids.has(id)) { return }
     this.ids.add(id)
     this.queue.push(id)
     if (this.queue.length > this.max) {
       const oldest = this.queue.shift()
-      this.ids.delete(oldest)
+      if (oldest) { this.ids.delete(oldest) }
     }
   }
 }

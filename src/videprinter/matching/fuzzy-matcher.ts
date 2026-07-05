@@ -1,13 +1,11 @@
 import Fuse from 'fuse.js'
+import type { DreamLeaguePlayer, DreamLeagueGoalkeeper, NormalizedPlayer, NormalizedTeam, PlayerMatch, GoalkeeperMatch } from '../types.ts'
 
-/**
- * Fuzzy matching service for players and teams using fuse.js
- */
 export class FuzzyMatcher {
-  playerFuse
-  teamFuse
-  players
-  goalkeepers
+  playerFuse: Fuse<NormalizedPlayer> | null
+  teamFuse: Fuse<NormalizedTeam> | null
+  players: DreamLeaguePlayer[]
+  goalkeepers: DreamLeagueGoalkeeper[]
 
   constructor () {
     this.playerFuse = null
@@ -16,37 +14,30 @@ export class FuzzyMatcher {
     this.goalkeepers = []
   }
 
-  /**
-   * Update the fuzzy search indices with new player and goalkeeper data
-   */
-  updateData (players, goalkeepers) {
+  updateData (players: DreamLeaguePlayer[], goalkeepers: DreamLeagueGoalkeeper[]): void {
     this.players = players
     this.goalkeepers = goalkeepers
 
-    // Configure fuse for player name matching
     const playerOptions = {
       includeScore: true,
-      threshold: 0.6, // Higher threshold for more permissive matching (0.6 = 60% similarity required)
+      threshold: 0.6,
       keys: ['name', 'normalizedName']
     }
 
-    // Add normalized names for better matching
-    const playersWithNormalized = players.map(player => ({
+    const playersWithNormalized: NormalizedPlayer[] = players.map(player => ({
       ...player,
       normalizedName: this.normalizeName(player.name)
     }))
 
     this.playerFuse = new Fuse(playersWithNormalized, playerOptions)
 
-    // Configure fuse for team name matching
     const teamOptions = {
       includeScore: true,
-      threshold: 0.3, // Stricter for team names
+      threshold: 0.3,
       keys: ['name', 'normalizedName']
     }
 
-    // Create unique team list from goalkeepers
-    const uniqueTeams = goalkeepers.reduce((acc, gk) => {
+    const uniqueTeams: NormalizedTeam[] = goalkeepers.reduce<NormalizedTeam[]>((acc, gk) => {
       if (!acc.find(t => t.name === gk.name)) {
         acc.push({
           name: gk.name,
@@ -62,110 +53,82 @@ export class FuzzyMatcher {
     this.teamFuse = new Fuse(uniqueTeams, teamOptions)
   }
 
-  /**
-   * Normalize a name for better matching (remove common prefixes/suffixes, standardize format)
-   */
-  normalizeName (name) {
+  normalizeName (name: string): string {
     if (!name) { return '' }
 
     return name
       .toLowerCase()
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/[^\w\s]/g, ' ') // Replace special characters with spaces
-      .replace(/\b(fc|united|city|town|rovers|wanderers|athletic|county|albion)\b/g, '') // Remove common team suffixes
-      .replace(/\s+/g, ' ') // Clean up extra spaces
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\b(fc|united|city|town|rovers|wanderers|athletic|county|albion)\b/g, '')
+      .replace(/\s+/g, ' ')
       .trim()
   }
 
-  /**
-   * Find potential player matches for a goal scorer
-   * Returns array of matches with confidence scores
-   */
-  findPlayerMatches (scorerName, scoringTeam) {
+  findPlayerMatches (scorerName: string, scoringTeam?: string): PlayerMatch[] {
     if (!this.playerFuse || !scorerName) { return [] }
 
-    // First try exact/fuzzy name matching
     const nameMatches = this.playerFuse.search(scorerName)
 
-    // Filter by team if available and convert to our format
-    const results = nameMatches
+    const results: PlayerMatch[] = nameMatches
       .filter(match => {
-        // Exclude substitutes from matches
         if (match.item.substitute) { return false }
 
         if (!scoringTeam) { return true }
-        // Use fuzzy team matching instead of exact
         return this.isTeamMatch(match.item.team, scoringTeam)
       })
       .map(match => ({
         player: match.item,
-        confidence: 1 - match.score, // Convert fuse score to confidence (higher = better)
-        matchType: 'player'
+        confidence: 1 - (match.score ?? 0),
+        matchType: 'player' as const
       }))
 
     return results.filter(r => {
-      // Basic confidence check
       if (r.confidence <= 0.5) { return false }
 
-      // Additional check: prevent very dissimilar names from matching
       const scorerNormalized = this.normalizeName(scorerName)
       const playerNormalized = this.normalizeName(r.player.name)
 
-      // If names share no common words and are very different lengths, reject
       const scorerWords = scorerNormalized.split(' ').filter(w => w.length > 1)
       const playerWords = playerNormalized.split(' ').filter(w => w.length > 1)
       const commonWords = scorerWords.filter(w => playerWords.includes(w))
 
-      // Require at least one common word or high confidence
       return commonWords.length > 0 || r.confidence > 0.8
     })
   }
 
-  /**
-   * Find potential manager concessions (when their goalkeeper's team concedes)
-   * Returns array of matches with manager information
-   */
-  findGoalkeeperMatches (concedingTeam) {
+  findGoalkeeperMatches (concedingTeam: string): GoalkeeperMatch[] {
     if (!this.teamFuse || !concedingTeam) { return [] }
 
     const teamMatches = this.teamFuse.search(concedingTeam)
 
     return teamMatches
       .filter(match => {
-        // Exclude substitutes from matches
         if (match.item.substitute) { return false }
 
-        return (1 - match.score) > 0.7 // High confidence for team matches
+        return (1 - (match.score ?? 0)) > 0.7
       })
       .map(match => ({
         team: match.item,
-        confidence: 1 - match.score,
-        matchType: 'goalkeeper'
+        confidence: 1 - (match.score ?? 0),
+        matchType: 'goalkeeper' as const
       }))
   }
 
-  /**
-   * Check if two team names are likely the same team
-   */
-  isTeamMatch (team1, team2) {
+  isTeamMatch (team1: string, team2: string): boolean {
     if (!team1 || !team2) { return false }
 
     const normalized1 = this.normalizeName(team1)
     const normalized2 = this.normalizeName(team2)
 
-    // If normalized names are very short, use exact match
     if (normalized1.length < 4 || normalized2.length < 4) {
       return normalized1 === normalized2
     }
 
-    // Check if one is contained in the other (for cases like "Arsenal" vs "Arsenal FC")
     return normalized1.includes(normalized2) || normalized2.includes(normalized1)
   }
 
-  /**
-   * Get summary of currently loaded data
-   */
-  getSummary () {
+  getSummary (): { playersLoaded: number; goalkeepersLoaded: number; uniqueManagers: number } {
     return {
       playersLoaded: this.players.length,
       goalkeepersLoaded: this.goalkeepers.length,
@@ -177,5 +140,4 @@ export class FuzzyMatcher {
   }
 }
 
-// Export singleton instance
 export const fuzzyMatcher = new FuzzyMatcher()
