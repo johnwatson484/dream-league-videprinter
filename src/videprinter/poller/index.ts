@@ -1,3 +1,4 @@
+import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
 import { fetchLiveScoreGoals } from '../fetchers/live-score.ts'
@@ -7,34 +8,34 @@ import { saveEvents } from '../storage/mongo.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
-function isQuietHours () {
+interface PollerLogger {
+  log: (...args: unknown[]) => void
+  error: (...args: unknown[]) => void
+}
+
+function isQuietHours (): boolean {
   const { quietHoursStart, quietHoursEnd } = config.get('videprinter')
   const now = new Date()
   const currentHour = now.getHours()
 
-  // Handle cases where quiet period crosses midnight (e.g., 23 to 12)
   if (quietHoursStart > quietHoursEnd) {
-    // Crosses midnight: quiet if hour >= start OR hour < end
     return currentHour >= quietHoursStart || currentHour < quietHoursEnd
   } else {
-    // Same day: quiet if hour >= start AND hour < end
     return currentHour >= quietHoursStart && currentHour < quietHoursEnd
   }
 }
 
-async function loop () {
+async function loop (): Promise<number> {
   const { provider } = config.get('dataSource')
-  let goals = []
+  let goals: GoalEvent[] = []
   if (provider === 'mock') {
     goals = await fetchMockGoals()
   } else if (provider === 'live-score') {
     goals = await fetchLiveScoreGoals()
   }
 
-  // Goals are already deduplicated by the fetcher using MongoDB
   let emitted = 0
   for (const goal of goals) {
-    // Enhance goal with Dream League Fantasy Football data
     const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
 
     videprinterBroadcaster.emit('goal', enhancedGoal)
@@ -42,9 +43,7 @@ async function loop () {
     emitted++
   }
 
-  // Save all new goals to MongoDB
   if (goals.length > 0) {
-    // Enhance goals before saving
     const enhancedGoals = await Promise.all(
       goals.map(goal => dreamLeagueService.enhanceGoal(goal))
     )
@@ -54,9 +53,9 @@ async function loop () {
   return emitted
 }
 
-export function startPoller (logger = console) {
+export function startPoller (logger: PollerLogger = console): void {
   const { pollLiveIntervalMs } = config.get('videprinter')
-  async function runTickBody () {
+  async function runTickBody (): Promise<number> {
     if (isQuietHours()) {
       logger.log('[videprinter] skipping poll during quiet hours')
       return 0
@@ -67,7 +66,7 @@ export function startPoller (logger = console) {
     logger.log(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
     return emitted
   }
-  async function tick () {
+  async function tick (): Promise<void> {
     try {
       await runTickBody()
     } catch (err) {

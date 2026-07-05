@@ -1,7 +1,8 @@
+import type { Server } from '@hapi/hapi'
 import { createServer } from '../../src/server.ts'
 
 describe('health test', () => {
-  let server
+  let server: Server
 
   beforeEach(async () => {
     server = await createServer()

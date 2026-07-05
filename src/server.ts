@@ -1,10 +1,11 @@
 import Hapi from '@hapi/hapi'
+import type { Server } from '@hapi/hapi'
 import Joi from 'joi'
 import { registerPlugins } from './plugins/index.ts'
 import config from './config.ts'
 import { initMongo, closeMongo } from './videprinter/storage/mongo.ts'
 
-async function createServer () {
+async function createServer (): Promise<Server> {
   const server = Hapi.server({
     host: config.get('host'),
     port: config.get('port'),

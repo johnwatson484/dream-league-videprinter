@@ -1,5 +1,3 @@
-// Persistent (Mongo-backed when available) daily request counter.
-// Falls back to in-memory if Mongo disabled.
 import config from '../../config.ts'
 import { getMetaStore, upsertMeta } from '../storage/meta-store.ts'
 
@@ -7,11 +5,11 @@ let dateKey = new Date().toISOString().slice(0, 10)
 let count = 0
 let loaded = false
 
-async function ensureLoaded () {
+async function ensureLoaded (): Promise<void> {
   if (loaded) { return }
   const store = getMetaStore()
   if (!store) { loaded = true; return }
-  const doc = await store.findOne({ _id: 'dailyRequestCounter' })
+  const doc = await store.findOne({ _id: 'dailyRequestCounter' } as any) as { dateKey: string; count: number } | null
   if (doc) {
     if (doc.dateKey === dateKey) {
       count = doc.count || 0
@@ -27,7 +25,7 @@ async function ensureLoaded () {
   loaded = true
 }
 
-export async function noteExternalRequest () {
+export async function noteExternalRequest (): Promise<number> {
   await ensureLoaded()
   const today = new Date().toISOString().slice(0, 10)
   if (today !== dateKey) {
@@ -40,21 +38,20 @@ export async function noteExternalRequest () {
   return count
 }
 
-export async function canMakeExternalRequest () {
+export async function canMakeExternalRequest (): Promise<boolean> {
   await ensureLoaded()
   const cap = config.get('dataSource').dailyRequestCap || Infinity
   return count < cap
 }
 
-export async function remainingRequestsToday () {
+export async function remainingRequestsToday (): Promise<number> {
   await ensureLoaded()
   const cap = config.get('dataSource').dailyRequestCap || Infinity
   return cap === Infinity ? Infinity : Math.max(0, cap - count)
 }
 
-export function currentRequestCount () { return count }
+export function currentRequestCount (): number { return count }
 
-// Non-async compatibility wrappers (legacy code may import sync names)
-export function noteExternalRequestSync () { return noteExternalRequest() }
-export function canMakeExternalRequestSync () { return count < (config.get('dataSource').dailyRequestCap || Infinity) }
-export function remainingRequestsTodaySync () { const cap = config.get('dataSource').dailyRequestCap || Infinity; return cap === Infinity ? Infinity : Math.max(0, cap - count) }
+export function noteExternalRequestSync (): Promise<number> { return noteExternalRequest() }
+export function canMakeExternalRequestSync (): boolean { return count < (config.get('dataSource').dailyRequestCap || Infinity) }
+export function remainingRequestsTodaySync (): number { const cap = config.get('dataSource').dailyRequestCap || Infinity; return cap === Infinity ? Infinity : Math.max(0, cap - count) }

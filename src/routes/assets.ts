@@ -1,4 +1,6 @@
-const route = {
+import type { ServerRoute } from '@hapi/hapi'
+
+const route: ServerRoute = {
   method: 'GET',
   path: '/assets/{path*}',
   handler: {

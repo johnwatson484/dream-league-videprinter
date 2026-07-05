@@ -1,22 +1,22 @@
-// In-memory ring buffer of recent goal events for replay on new connections / refresh.
+import type { GoalEvent, ListOptions } from '../types.ts'
 
 class EventsStore {
-  limit
-  events
+  limit: number
+  events: GoalEvent[]
 
   constructor (limit = 500) {
     this.limit = limit
-    this.events = [] // oldest -> newest
+    this.events = []
   }
 
-  add (event) {
+  add (event: GoalEvent): void {
     this.events.push(event)
     if (this.events.length > this.limit) {
       this.events.shift()
     }
   }
 
-  list (options = { limit: 100, order: 'desc' }) {
+  list (options: ListOptions = { limit: 100, order: 'desc' }): GoalEvent[] {
     const { limit = 100, order = 'desc' } = options
     const slice = this.events.slice(-limit)
     if (order === 'desc') { return slice.slice().reverse() }

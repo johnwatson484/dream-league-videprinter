@@ -1,17 +1,13 @@
+import type { Plugin, ServerOptions } from '@hapi/hapi'
 import home from '../routes/home.ts'
 import assets from '../routes/assets.ts'
 import health from '../routes/health.ts'
 import videprinter from '../routes/videprinter/index.ts'
 
-const plugin = {
+const plugin: Plugin<ServerOptions> = {
   name: 'router',
-  register: (server, options) => {
-    server.route([].concat(
-      home,
-      assets,
-      health,
-      videprinter
-    ))
+  register: (server) => {
+    server.route([home, assets, ...health, ...videprinter])
   },
 }
 

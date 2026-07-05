@@ -1,8 +1,11 @@
-const plugin = {
+import type { Plugin, ServerOptions } from '@hapi/hapi'
+
+const plugin: Plugin<ServerOptions> = {
   name: 'headers',
-  register: (server, options) => {
+  register: (server) => {
     server.ext('onPreResponse', (request, h) => {
-      const headers = request.response.isBoom ? request.response.output.headers : request.response?.headers
+      const response = request.response
+      const headers = ('isBoom' in response && response.isBoom) ? response.output.headers : (response as any)?.headers
 
       if (headers) {
         headers['X-Content-Type-Options'] = 'nosniff'

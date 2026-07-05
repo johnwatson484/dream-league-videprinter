@@ -1,8 +1,9 @@
+import type { ServerRoute } from '@hapi/hapi'
 import { eventsStore } from '../../videprinter/state/events-store.ts'
 import config from '../../config.ts'
 import { fetchRecentEvents } from '../../videprinter/storage/mongo.ts'
 
-const route = {
+const route: ServerRoute = {
   method: 'GET',
   path: '/videprinter/history',
   options: {
@@ -11,14 +12,14 @@ const route = {
     tags: ['videprinter'],
   },
   handler: async (request, h) => {
-    const limit = Math.min(parseInt(request.query.limit || '100', 10), 500)
+    const limitParam = request.query.limit
+    const limit = Math.min(parseInt(Array.isArray(limitParam) ? limitParam[0] || '100' : limitParam || '100', 10), 500)
     const mongoCfg = config.get('mongo')
     if (mongoCfg.enabled) {
       const events = await fetchRecentEvents(limit)
       if (Array.isArray(events) && events.length > 0) {
         return { events }
       }
-      // Fallback to in-memory store when Mongo isn't initialised or has no data
       return { events: eventsStore.list({ limit, order: 'desc' }) }
     }
     return { events: eventsStore.list({ limit, order: 'desc' }) }

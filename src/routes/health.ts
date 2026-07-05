@@ -1,4 +1,6 @@
-const routes = [{
+import type { ServerRoute } from '@hapi/hapi'
+
+const routes: ServerRoute[] = [{
   method: 'GET',
   path: '/healthy',
   handler: (request, h) => {

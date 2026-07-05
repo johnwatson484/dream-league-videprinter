@@ -1,6 +1,7 @@
+import type { ServerRegisterPluginObject } from '@hapi/hapi'
 import HapiPino from 'hapi-pino'
 
-const plugin = {
+const plugin: ServerRegisterPluginObject<any> = {
   plugin: HapiPino,
   options: {
     level: 'warn',

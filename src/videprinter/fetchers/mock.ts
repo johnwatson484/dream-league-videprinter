@@ -1,5 +1,5 @@
-// Mock fetcher returns synthetic goal events in the SAME format as the live-score fetcher normalization
 import crypto from 'node:crypto'
+import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 
 const TEAM_NAMES = [
@@ -10,17 +10,17 @@ const SCORERS = ['Smith', 'Jones', 'Brown', 'Taylor', 'Johnson', 'Evans']
 
 let fixtureCounter = 1
 
-function pick (arr) { return arr[Math.floor(Math.random() * arr.length)] }
+function pick<T> (arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]! }
 
-export async function fetchLiveGoals () {
+export async function fetchLiveGoals (): Promise<GoalEvent[]> {
   const ds = config.get('dataSource')
-  const comps = ds.liveScore.competitions
+  const comps = ds.liveScore.competitions as Record<string, number>
   const compEntries = Object.entries(comps)
   if (!compEntries.length) { return [] }
-  if (Math.random() >= 0.2) { return [] } // 20% chance to emit a goal batch of size 1
+  if (Math.random() >= 0.2) { return [] }
 
-  const compEntry = pick(compEntries) // [key, id]
-  const competitionNameMap = {
+  const compEntry = pick(compEntries)
+  const competitionNameMap: Record<string, string> = {
     premierLeague: 'Premier League',
     championship: 'Championship',
     leagueOne: 'League One',
@@ -38,27 +38,11 @@ export async function fetchLiveGoals () {
   const minute = Math.floor(Math.random() * 90) + 1
   const homeGoals = scoringTeamIsHome ? 1 : 0
   const awayGoals = scoringTeamIsHome ? 0 : 1
-  const scoreStr = `${homeGoals} - ${awayGoals}`
-  const goalEventRaw = {
-    time: String(minute),
-    scorer,
-    score: scoreStr,
-  }
-  const match = {
-    id: `mock-${fixtureCounter++}`,
-    competition_id: compEntry[1],
-    competition_name: competitionNameMap[compEntry[0]] || compEntry[0],
-    home_name: home,
-    away_name: away,
-    status: 'LIVE',
-    goals: [goalEventRaw],
-  }
 
-  // Reuse normalize logic shape used by live-score provider
   return [{
-    id: `${match.id}-${goalEventRaw.time}-${crypto.randomUUID()}`,
-    fixtureId: String(match.id),
-    competition: match.competition_name,
+    id: `mock-${fixtureCounter++}-${minute}-${crypto.randomUUID()}`,
+    fixtureId: String(`mock-${fixtureCounter}`),
+    competition: competitionNameMap[compEntry[0]] || compEntry[0],
     utcTimestamp: new Date(),
     minute,
     scoringTeam: { name: scoringTeamIsHome ? home : away },
@@ -66,7 +50,7 @@ export async function fetchLiveGoals () {
     scorer: { name: scorer, normalizedName: scorer.toLowerCase() },
     assist: null,
     scoreAfterEvent: { home: homeGoals, away: awayGoals },
-    phase: match.status,
+    phase: 'LIVE',
     source: 'mock',
   }]
 }
