@@ -32,7 +32,7 @@ export async function initMongo (logger: Logger = console): Promise<boolean> {
   collection = db.collection<GoalEvent>(mongoCfg.collection)
   await collection.createIndex({ id: 1 }, { unique: true })
   await collection.createIndex({ utcTimestamp: -1 })
-  await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 86400 })
+  await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 1209600 })
   registerMetaCollection(db)
   safeLog('[mongo] connected')
   return true
@@ -54,6 +54,15 @@ export async function fetchRecentEvents (limit = 100): Promise<GoalEvent[]> {
     .sort({ utcTimestamp: -1 })
     .limit(limit)
     .toArray()
+  return docs as unknown as GoalEvent[]
+}
+
+export async function fetchEventsByDateRange (from: Date, to: Date): Promise<GoalEvent[]> {
+  if (!collection) { return [] }
+  const docs = await collection.find(
+    { utcTimestamp: { $gte: from, $lte: to } } as any,
+    { projection: { _id: 0 } }
+  ).sort({ utcTimestamp: -1 }).toArray()
   return docs as unknown as GoalEvent[]
 }
 

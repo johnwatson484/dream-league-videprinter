@@ -61,6 +61,7 @@ class DreamLeagueService {
         enhanced.potentialGoalFor = {
           manager: bestPlayerMatch.player.manager,
           player: bestPlayerMatch.player.name,
+          playerId: bestPlayerMatch.player.playerId,
           team: bestPlayerMatch.player.team,
           confidence: bestPlayerMatch.confidence,
           substitute: bestPlayerMatch.player.substitute || false
@@ -76,6 +77,7 @@ class DreamLeagueService {
         enhanced.potentialConcedingFor = {
           manager: bestGoalkeeperMatch.team.manager,
           team: bestGoalkeeperMatch.team.name,
+          teamId: bestGoalkeeperMatch.team.teamId,
           confidence: bestGoalkeeperMatch.confidence,
           substitute: bestGoalkeeperMatch.team.substitute || false
         }

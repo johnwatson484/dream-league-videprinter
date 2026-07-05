@@ -14,6 +14,7 @@ export interface GoalEvent {
   potentialGoalFor?: {
     manager: string
     player: string
+    playerId: number
     team: string
     confidence: number
     substitute: boolean
@@ -21,6 +22,7 @@ export interface GoalEvent {
   potentialConcedingFor?: {
     manager: string
     team: string
+    teamId: number
     confidence: number
     substitute: boolean
   }
