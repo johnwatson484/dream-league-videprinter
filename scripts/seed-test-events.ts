@@ -7,60 +7,61 @@ const COLLECTION = process.env.MONGO_COLLECTION || 'goalEvents'
 const GAMEWEEK_START = process.env.GAMEWEEK_START || '2026-07-05'
 
 const PLAYER_MATCHES: Record<string, { playerId: number; manager: string; player: string }> = {
-  'Brown:Barnsley': { playerId: 1727, manager: 'John Watson', player: 'Brown, Jacob' },
-  'Evans:Derby': { playerId: 1152, manager: 'Lee Gordon', player: 'Evans, George' },
-  'Jones:Oxford': { playerId: 669, manager: 'Scott Dormand', player: 'Jones, Nico' },
-  'Taylor:Charlton': { playerId: 1815, manager: 'Billy Gordon', player: 'Taylor, Lyle' },
-  'Evans:Wigan': { playerId: 1696, manager: 'Tommy Gordon', player: 'Evans, Lee' },
-  'Taylor:Exeter': { playerId: 1184, manager: 'David Brown', player: 'Taylor, Jake' },
-  'Evans:Portsmouth': { playerId: 1485, manager: 'Bob Brown', player: 'Evans, Gareth' },
-  'Smith:Reading': { playerId: 2065, manager: 'Darren Brown', player: 'Smith, Sam' },
-  'Johnson:Bolton': { playerId: 292, manager: 'John Watson', player: 'Johnson, Chiori' },
-  'Smith:Lincoln': { playerId: 563, manager: 'David Brown', player: 'Smith, Jon' },
+  'Moore:Barnsley': { playerId: 1730, manager: 'John Watson', player: 'Moore, Kieffer' },
+  'Chaplin:Barnsley': { playerId: 1728, manager: 'Tucker Brazier', player: 'Chaplin, Conor' },
+  'Taylor:Charlton': { playerId: 1815, manager: 'Tucker Brazier', player: 'Taylor, Lyle' },
+  'Byrne:Wigan': { playerId: 1694, manager: 'John Watson', player: 'Byrne, Nathan' },
+  'Kipre:Wigan': { playerId: 895, manager: 'Scott Dormand', player: 'Kipre, Cedric' },
+  'Lawrence:Derby': { playerId: 1845, manager: 'Billy Gordon', player: 'Lawrence, Tom' },
+  'Waghorn:Derby': { playerId: 1848, manager: 'Rob Doloughan', player: 'Waghorn, Martyn' },
+  'Bennett:Derby': { playerId: 1843, manager: 'Rob Doloughan', player: 'Bennett, Mason' },
+  'Hardie:Blackpool': { playerId: 1746, manager: 'Scott Dormand', player: 'Hardie, Ryan' },
+  'Gnanduillet:Blackpool': { playerId: 1745, manager: 'Bob Brown', player: 'Gnanduillet, Armand' },
+  'Cannon:Portsmouth': { playerId: 1482, manager: 'David Brown', player: 'Cannon, Andy' },
+  'Bowman:Exeter': { playerId: 1861, manager: 'Ben Scott', player: 'Bowman, Ryan' },
+  'Sweeney:Exeter': { playerId: 460, manager: 'John Watson', player: 'Sweeney, Pierce' },
+  'Hall:Oxford': { playerId: 2014, manager: 'David Brown', player: 'Hall, Rob' },
+  'Henry:Oxford': { playerId: 2015, manager: 'Billy Gordon', player: 'Henry, James' },
+  'Toney:Peterborough': { playerId: 2027, manager: 'Lee Gordon', player: 'Toney, Ivan' },
+  'Eisa:Peterborough': { playerId: 2022, manager: 'David Brown', player: 'Eisa, Mo' },
+  'Boyd:Peterborough': { playerId: 1445, manager: 'Scott Dormand', player: 'Boyd, George' },
+  'Andrade:Lincoln': { playerId: 1311, manager: 'Bob Brown', player: 'Andrade, Bruno' },
+  'Kaikai:Blackpool': { playerId: 969, manager: 'Rob Doloughan', player: 'Kaikai, Sullay' },
 }
 
 const KEEPER_MATCHES: Record<string, { teamId: number; manager: string }> = {
-  Barnsley: { teamId: 26, manager: 'John Watson' },
-  Bolton: { teamId: 16, manager: 'Bob Brown' },
-  Derby: { teamId: 33, manager: 'Lee Gordon' },
-  Portsmouth: { teamId: 20, manager: 'Darren Brown' },
-  Oxford: { teamId: 74, manager: 'Scott Dormand' },
-  Blackpool: { teamId: 63, manager: 'Michael Richardson' },
-  Peterborough: { teamId: 27, manager: 'Billy Gordon' },
-  Charlton: { teamId: 24, manager: 'Rob Doloughan' },
-  Wigan: { teamId: 28, manager: 'Tommy Gordon' },
-  Reading: { teamId: 41, manager: 'Ben Scott' },
-  Exeter: { teamId: 60, manager: 'David Brown' },
-  Lincoln: { teamId: 6, manager: 'Tucker Brazier' },
+  Wigan: { teamId: 28, manager: 'Lee Gordon' },
+  Derby: { teamId: 33, manager: 'Michael Richardson' },
+  Portsmouth: { teamId: 20, manager: 'Tucker Brazier' },
 }
 
 const EVENTS = [
-  { scorer: 'Brown', scoringTeam: 'Barnsley', concedingTeam: 'Bolton', minute: 23, competition: 'Championship', dayOffset: 0 },
-  { scorer: 'Brown', scoringTeam: 'Barnsley', concedingTeam: 'Reading', minute: 5, competition: 'Championship', dayOffset: 0 },
-  { scorer: 'Smith', scoringTeam: 'Reading', concedingTeam: 'Derby', minute: 45, competition: 'Championship', dayOffset: 1 },
-  { scorer: 'Taylor', scoringTeam: 'Charlton', concedingTeam: 'Exeter', minute: 67, competition: 'League One', dayOffset: 1 },
-  { scorer: 'Evans', scoringTeam: 'Derby', concedingTeam: 'Blackpool', minute: 12, competition: 'Championship', dayOffset: 2 },
-  { scorer: 'Evans', scoringTeam: 'Portsmouth', concedingTeam: 'Wigan', minute: 55, competition: 'League One', dayOffset: 2 },
-  { scorer: 'Johnson', scoringTeam: 'Bolton', concedingTeam: 'Peterborough', minute: 33, competition: 'League One', dayOffset: 3 },
-  { scorer: 'Jones', scoringTeam: 'Oxford', concedingTeam: 'Lincoln', minute: 78, competition: 'League One', dayOffset: 3 },
-  { scorer: 'Taylor', scoringTeam: 'Exeter', concedingTeam: 'Charlton', minute: 90, competition: 'League Two', dayOffset: 4 },
-  { scorer: 'Smith', scoringTeam: 'Lincoln', concedingTeam: 'Oxford', minute: 61, competition: 'League Two', dayOffset: 4 },
-  { scorer: 'Evans', scoringTeam: 'Wigan', concedingTeam: 'Portsmouth', minute: 14, competition: 'League One', dayOffset: 5 },
-  { scorer: 'Brown', scoringTeam: 'Exeter', concedingTeam: 'Peterborough', minute: 72, competition: 'League Two', dayOffset: 5 },
-  { scorer: 'Johnson', scoringTeam: 'Bolton', concedingTeam: 'Charlton', minute: 38, competition: 'League One', dayOffset: 5 },
-  { scorer: 'Smith', scoringTeam: 'Reading', concedingTeam: 'Blackpool', minute: 82, competition: 'Championship', dayOffset: 6 },
-  { scorer: 'Jones', scoringTeam: 'Oxford', concedingTeam: 'Barnsley', minute: 19, competition: 'League One', dayOffset: 6 },
-  { scorer: 'Taylor', scoringTeam: 'Charlton', concedingTeam: 'Lincoln', minute: 44, competition: 'League One', dayOffset: 6 },
-  { scorer: 'Brown', scoringTeam: 'Barnsley', concedingTeam: 'Wigan', minute: 57, competition: 'Championship', dayOffset: 0 },
-  { scorer: 'Evans', scoringTeam: 'Derby', concedingTeam: 'Bolton', minute: 31, competition: 'Championship', dayOffset: 1 },
-  { scorer: 'Hardie', scoringTeam: 'Blackpool', concedingTeam: 'Peterborough', minute: 68, competition: 'League Two', dayOffset: 3 },
+  { scorer: 'Moore', scoringTeam: 'Barnsley', concedingTeam: 'Wigan', minute: 23, competition: 'Championship', dayOffset: 0 },
+  { scorer: 'Moore', scoringTeam: 'Barnsley', concedingTeam: 'Derby', minute: 57, competition: 'Championship', dayOffset: 0 },
+  { scorer: 'Chaplin', scoringTeam: 'Barnsley', concedingTeam: 'Portsmouth', minute: 5, competition: 'Championship', dayOffset: 0 },
+  { scorer: 'Taylor', scoringTeam: 'Charlton', concedingTeam: 'Derby', minute: 67, competition: 'League One', dayOffset: 1 },
+  { scorer: 'Lawrence', scoringTeam: 'Derby', concedingTeam: 'Wigan', minute: 12, competition: 'Championship', dayOffset: 1 },
+  { scorer: 'Waghorn', scoringTeam: 'Derby', concedingTeam: 'Portsmouth', minute: 31, competition: 'Championship', dayOffset: 1 },
+  { scorer: 'Hardie', scoringTeam: 'Blackpool', concedingTeam: 'Wigan', minute: 55, competition: 'Championship', dayOffset: 2 },
+  { scorer: 'Gnanduillet', scoringTeam: 'Blackpool', concedingTeam: 'Derby', minute: 33, competition: 'Championship', dayOffset: 2 },
+  { scorer: 'Cannon', scoringTeam: 'Portsmouth', concedingTeam: 'Derby', minute: 78, competition: 'League One', dayOffset: 3 },
+  { scorer: 'Bowman', scoringTeam: 'Exeter', concedingTeam: 'Portsmouth', minute: 90, competition: 'League Two', dayOffset: 3 },
+  { scorer: 'Hall', scoringTeam: 'Oxford', concedingTeam: 'Wigan', minute: 61, competition: 'League One', dayOffset: 4 },
+  { scorer: 'Toney', scoringTeam: 'Peterborough', concedingTeam: 'Derby', minute: 14, competition: 'League One', dayOffset: 4 },
+  { scorer: 'Toney', scoringTeam: 'Peterborough', concedingTeam: 'Wigan', minute: 38, competition: 'League One', dayOffset: 5 },
+  { scorer: 'Boyd', scoringTeam: 'Peterborough', concedingTeam: 'Portsmouth', minute: 82, competition: 'League One', dayOffset: 5 },
+  { scorer: 'Andrade', scoringTeam: 'Lincoln', concedingTeam: 'Derby', minute: 19, competition: 'League Two', dayOffset: 5 },
+  { scorer: 'Byrne', scoringTeam: 'Wigan', concedingTeam: 'Portsmouth', minute: 44, competition: 'League One', dayOffset: 6 },
+  { scorer: 'Kipre', scoringTeam: 'Wigan', concedingTeam: 'Derby', minute: 72, competition: 'League One', dayOffset: 6 },
+  { scorer: 'Sweeney', scoringTeam: 'Exeter', concedingTeam: 'Wigan', minute: 25, competition: 'League Two', dayOffset: 6 },
   { scorer: 'Pederson', scoringTeam: 'Birmingham', concedingTeam: 'Derby', minute: 4, competition: 'Championship', dayOffset: 4 },
+  { scorer: 'Grabban', scoringTeam: 'Nottingham Forest', concedingTeam: 'Wigan', minute: 68, competition: 'Championship', dayOffset: 3 },
 ]
 
 async function seed (): Promise<void> {
   const gameweekStart = new Date(GAMEWEEK_START)
   gameweekStart.setUTCHours(0, 0, 0, 0)
-  console.log(`Seeding events for gameweek starting: ${gameweekStart.toISOString()}`)
+  console.log(`Seeding events for gameweek starting: ${gameweekStart.toISOString().slice(0, 10)}`)
 
   const client = new MongoClient(MONGO_URI)
   await client.connect()
@@ -128,11 +129,7 @@ async function seed (): Promise<void> {
     { ordered: false }
   )
 
-  console.log(`Inserted ${result.upsertedCount} events (${result.matchedCount} already existed)`)
-  const enriched = documents.filter(d => d.potentialGoalFor).length
-  const unmatched = documents.filter(d => !d.potentialGoalFor).length
-  console.log(`Enriched: ${enriched} with playerIds, ${unmatched} unmatched`)
-  console.log(`Date range: ${documents[0]!.utcTimestamp.toISOString()} to ${documents[documents.length - 1]!.utcTimestamp.toISOString()}`)
+  console.log(`Seeded ${result.upsertedCount} events`)
   await client.close()
 }
 
