@@ -33,7 +33,7 @@ export async function fetchMatchesByDateRange (from: Date, to: Date): Promise<Ma
   if (!collection) { return [] }
   const docs = await collection.find(
     { utcTimestamp: { $gte: from, $lte: to } } as any,
-    { projection: { _id: 0 } },
+    { projection: { _id: 0 } }
   ).sort({ utcTimestamp: 1 }).toArray()
   return docs as unknown as MatchRecord[]
 }

@@ -238,11 +238,6 @@ async function getLiveMatches (fetcher: typeof fetch, url: string, shouldLog: bo
   }
 }
 
-async function collectGoals (matches: LiveMatch[], shouldLog: boolean, liveCreds: LiveCreds): Promise<GoalEvent[]> {
-  const result = await collectGoalsAndMatches(matches, shouldLog, liveCreds)
-  return result.goals
-}
-
 async function collectGoalsAndMatches (matches: LiveMatch[], shouldLog: boolean, liveCreds: LiveCreds): Promise<LiveScorePollResult> {
   const compIds = COMP_ID_SET()
   if (shouldLog) { console.log('[live-score] competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)') }
