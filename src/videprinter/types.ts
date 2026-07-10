@@ -69,6 +69,16 @@ export interface DreamLeagueTeamData {
   goalkeepers: DreamLeagueGoalkeeper[]
 }
 
+export interface MatchRecord {
+  fixtureId: string
+  competition: string
+  homeTeam: string
+  awayTeam: string
+  status: string
+  utcTimestamp: Date
+  finalScore: string | null
+}
+
 export interface ListOptions {
   limit?: number | undefined
   order?: 'asc' | 'desc' | undefined

@@ -3,6 +3,7 @@ import { MongoClient } from 'mongodb'
 import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 import { registerMetaCollection } from './meta-store.ts'
+import { initMatchCollection } from './match-store.ts'
 
 interface Logger {
   info?: (...args: unknown[]) => void
@@ -34,6 +35,7 @@ export async function initMongo (logger: Logger = console): Promise<boolean> {
   await collection.createIndex({ utcTimestamp: -1 })
   await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 1209600 })
   registerMetaCollection(db)
+  await initMatchCollection(db)
   safeLog('[mongo] connected')
   return true
 }

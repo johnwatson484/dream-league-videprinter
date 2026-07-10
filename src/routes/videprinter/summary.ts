@@ -2,6 +2,8 @@ import type { ServerRoute } from '@hapi/hapi'
 import { eventsStore } from '../../videprinter/state/events-store.ts'
 import config from '../../config.ts'
 import { fetchEventsByDateRange } from '../../videprinter/storage/mongo.ts'
+import { fetchMatchesByDateRange } from '../../videprinter/storage/match-store.ts'
+import { aggregateCupEvents } from '../../videprinter/aggregation/cup-summary.ts'
 import type { GoalEvent } from '../../videprinter/types.ts'
 
 function aggregateEvents (events: GoalEvent[]): {
@@ -105,7 +107,12 @@ const route: ServerRoute = {
       })
     }
 
-    return aggregateEvents(events)
+    const leagueResult = aggregateEvents(events)
+
+    const matches = mongoCfg.enabled ? await fetchMatchesByDateRange(fromDate, toDate) : []
+    const cupResult = aggregateCupEvents(events, matches)
+
+    return { ...leagueResult, ...cupResult }
   },
 }
 
