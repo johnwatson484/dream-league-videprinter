@@ -13,7 +13,7 @@ const route: ServerRoute = {
   },
   handler: async (request, h) => {
     const limitParam = request.query.limit
-    const limit = Math.min(parseInt(Array.isArray(limitParam) ? limitParam[0] || '100' : limitParam || '100', 10), 500)
+    const limit = Math.min(Number.parseInt(Array.isArray(limitParam) ? limitParam[0] || '100' : limitParam || '100', 10), 500)
     const mongoCfg = config.get('mongo')
     if (mongoCfg.enabled) {
       const events = await fetchRecentEvents(limit)
