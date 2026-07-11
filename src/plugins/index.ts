@@ -8,6 +8,7 @@ import headers from './headers.ts'
 import errors from './errors.ts'
 import views from './views.ts'
 import router from './router.ts'
+import pulse from './pulse.ts'
 
 async function registerPlugins (server: Server): Promise<void> {
   const plugins: any[] = [
@@ -19,7 +20,8 @@ async function registerPlugins (server: Server): Promise<void> {
     errors,
     headers,
     views,
-    router
+    router,
+    pulse
   ]
 
   await server.register(plugins)

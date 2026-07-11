@@ -39,10 +39,11 @@
     "convict-format-with-validator": "6.2.0",
     "fuse.js": "7.0.0",
     "hapi-pino": "12.1.0",
+    "hapi-pulse": "4.0.0",
     "joi": "17.13.4",
-    "pino": "8.21.0",
     "mongodb": "6.8.0",
     "nunjucks": "3.2.4",
+    "pino": "8.21.0",
     "semver": "7.7.2"
   },
   "devDependencies": {
