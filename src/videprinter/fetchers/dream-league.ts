@@ -1,5 +1,6 @@
 import type { DreamLeagueTeamData } from '../types.ts'
 import config from '../../config.ts'
+import logger from '../../logger.ts'
 
 let cachedTeamData: DreamLeagueTeamData | null = null
 let lastFetchTime = 0
@@ -23,7 +24,7 @@ export async function fetchDreamLeagueTeams (fetcher: typeof fetch = fetch): Pro
     const response = await fetcher(url)
 
     if (!response.ok) {
-      console.error(`[dream-league] API error: ${response.status} ${response.statusText}`)
+      logger.error(`[dream-league] API error: ${response.status} ${response.statusText}`)
       return cachedTeamData || { players: [], goalkeepers: [] }
     }
 
@@ -34,11 +35,11 @@ export async function fetchDreamLeagueTeams (fetcher: typeof fetch = fetch): Pro
     }
     lastFetchTime = now
 
-    console.log(`[dream-league] fetched ${cachedTeamData.players.length} players and ${cachedTeamData.goalkeepers.length} goalkeeper teams`)
+    logger.info(`[dream-league] fetched ${cachedTeamData.players.length} players and ${cachedTeamData.goalkeepers.length} goalkeeper teams`)
 
     return cachedTeamData
   } catch (error) {
-    console.error('[dream-league] fetch error:', (error as Error).message)
+    logger.error('[dream-league] fetch error: %s', (error as Error).message)
     return cachedTeamData || { players: [], goalkeepers: [] }
   }
 }

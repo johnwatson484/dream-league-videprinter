@@ -1,6 +1,7 @@
 import type { GoalEvent } from '../types.ts'
 import { fetchDreamLeagueTeams } from '../fetchers/dream-league.ts'
 import { fuzzyMatcher } from './fuzzy-matcher.ts'
+import logger from '../../logger.ts'
 
 class DreamLeagueService {
   lastUpdateTime: number
@@ -16,9 +17,9 @@ class DreamLeagueService {
   async initialize (): Promise<void> {
     try {
       await this.updateDreamLeagueData()
-      console.log('[dream-league-service] initialized')
+      logger.info('[dream-league-service] initialized')
     } catch (error) {
-      console.error('[dream-league-service] initialization failed:', (error as Error).message)
+      logger.error('[dream-league-service] initialization failed: %s', (error as Error).message)
     }
   }
 
@@ -37,9 +38,9 @@ class DreamLeagueService {
       this.lastUpdateTime = now
 
       const summary = fuzzyMatcher.getSummary()
-      console.log(`[dream-league-service] updated data: ${summary.playersLoaded} players, ${summary.goalkeepersLoaded} goalkeeper teams, ${summary.uniqueManagers} managers`)
+      logger.info(`[dream-league-service] updated data: ${summary.playersLoaded} players, ${summary.goalkeepersLoaded} goalkeeper teams, ${summary.uniqueManagers} managers`)
     } catch (error) {
-      console.error('[dream-league-service] update failed:', (error as Error).message)
+      logger.error('[dream-league-service] update failed: %s', (error as Error).message)
     } finally {
       this.isUpdating = false
     }
@@ -83,7 +84,7 @@ class DreamLeagueService {
         }
       }
     } catch (error) {
-      console.error('[dream-league-service] goal enhancement failed:', (error as Error).message)
+      logger.error('[dream-league-service] goal enhancement failed: %s', (error as Error).message)
     }
 
     return enhanced

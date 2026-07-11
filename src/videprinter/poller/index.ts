@@ -1,5 +1,6 @@
 import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
+import logger from '../../logger.ts'
 import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
 import { fetchLiveScoreData } from '../fetchers/live-score.ts'
 import { videprinterBroadcaster } from '../state/broadcaster.ts'
@@ -8,11 +9,6 @@ import { saveEvents } from '../storage/mongo.ts'
 import { saveMatches } from '../storage/match-store.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
-
-interface PollerLogger {
-  log: (...args: unknown[]) => void
-  error: (...args: unknown[]) => void
-}
 
 function isQuietHours (): boolean {
   const { quietHoursStart, quietHoursEnd } = config.get('videprinter')
@@ -58,24 +54,24 @@ async function loop (): Promise<number> {
   return emitted
 }
 
-export function startPoller (logger: PollerLogger = console): void {
+export function startPoller (): void {
   const { pollLiveIntervalMs } = config.get('videprinter')
   async function runTickBody (): Promise<number> {
     if (isQuietHours()) {
-      logger.log('[videprinter] skipping poll during quiet hours')
+      logger.info('[videprinter] skipping poll during quiet hours')
       return 0
     }
 
     const emitted = await loop()
     const remaining = await remainingRequestsToday()
-    logger.log(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
+    logger.info(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
     return emitted
   }
   async function tick (): Promise<void> {
     try {
       await runTickBody()
     } catch (err) {
-      logger.error('[videprinter] poll error', err)
+      logger.error({ err }, '[videprinter] poll error')
     } finally {
       setTimeout(tick, pollLiveIntervalMs)
     }
