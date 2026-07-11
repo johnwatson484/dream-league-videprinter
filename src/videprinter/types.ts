@@ -14,6 +14,7 @@ export interface GoalEvent {
   potentialGoalFor?: {
     manager: string
     player: string
+    playerId: number
     team: string
     confidence: number
     substitute: boolean
@@ -21,6 +22,7 @@ export interface GoalEvent {
   potentialConcedingFor?: {
     manager: string
     team: string
+    teamId: number
     confidence: number
     substitute: boolean
   }
@@ -65,6 +67,16 @@ export interface GoalkeeperMatch {
 export interface DreamLeagueTeamData {
   players: DreamLeaguePlayer[]
   goalkeepers: DreamLeagueGoalkeeper[]
+}
+
+export interface MatchRecord {
+  fixtureId: string
+  competition: string
+  homeTeam: string
+  awayTeam: string
+  status: string
+  utcTimestamp: Date
+  finalScore: string | null
 }
 
 export interface ListOptions {

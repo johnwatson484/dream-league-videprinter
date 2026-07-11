@@ -1,10 +1,11 @@
 import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
-import { fetchLiveScoreGoals } from '../fetchers/live-score.ts'
+import { fetchLiveScoreData } from '../fetchers/live-score.ts'
 import { videprinterBroadcaster } from '../state/broadcaster.ts'
 import { eventsStore } from '../state/events-store.ts'
 import { saveEvents } from '../storage/mongo.ts'
+import { saveMatches } from '../storage/match-store.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
@@ -31,7 +32,11 @@ async function loop (): Promise<number> {
   if (provider === 'mock') {
     goals = await fetchMockGoals()
   } else if (provider === 'live-score') {
-    goals = await fetchLiveScoreGoals()
+    const result = await fetchLiveScoreData()
+    goals = result.goals
+    if (result.matches.length > 0) {
+      await saveMatches(result.matches)
+    }
   }
 
   let emitted = 0

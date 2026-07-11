@@ -1,8 +1,13 @@
-import type { GoalEvent } from '../types.ts'
+import type { GoalEvent, MatchRecord } from '../types.ts'
 import config from '../../config.ts'
 import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.ts'
 import { batchCheckEventExists } from '../storage/mongo.ts'
 import crypto from 'node:crypto'
+
+export interface LiveScorePollResult {
+  goals: GoalEvent[]
+  matches: MatchRecord[]
+}
 
 interface RawGoal {
   time?: string
@@ -180,23 +185,28 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): GoalEvent {
 }
 
 export async function fetchLiveScoreGoals (fetcher: typeof fetch = fetch): Promise<GoalEvent[]> {
+  const result = await fetchLiveScoreData(fetcher)
+  return result.goals
+}
+
+export async function fetchLiveScoreData (fetcher: typeof fetch = fetch): Promise<LiveScorePollResult> {
   const shouldLog = process.env.DEBUG_LIVE_SCORE === '1' || process.env.DEBUG_LIVE_SCORE === 'true' || config.get('isDev')
   const { url, ds } = buildLiveUrl()
   if (shouldLog) { console.log('[live-score] fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host) }
   if (!ds.liveScore.key || !ds.liveScore.secret) {
     if (shouldLog) { console.log('[live-score] skip: missing API credentials') }
-    return []
+    return { goals: [], matches: [] }
   }
   if (!(await canMakeExternalRequest())) {
     if (shouldLog) { console.log('[live-score] skip: daily request cap reached') }
-    return []
+    return { goals: [], matches: [] }
   }
   await noteExternalRequest()
   if (shouldLog) { console.log('[live-score] requesting %s', maskSecret(url)) }
   const matches = await getLiveMatches(fetcher, url, shouldLog)
-  if (!matches.length) { return [] }
+  if (!matches.length) { return { goals: [], matches: [] } }
   const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  return await collectGoals(matches, shouldLog, liveCreds)
+  return await collectGoalsAndMatches(matches, shouldLog, liveCreds)
 }
 
 function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataSource'>> } {
@@ -228,7 +238,7 @@ async function getLiveMatches (fetcher: typeof fetch, url: string, shouldLog: bo
   }
 }
 
-async function collectGoals (matches: LiveMatch[], shouldLog: boolean, liveCreds: LiveCreds): Promise<GoalEvent[]> {
+async function collectGoalsAndMatches (matches: LiveMatch[], shouldLog: boolean, liveCreds: LiveCreds): Promise<LiveScorePollResult> {
   const compIds = COMP_ID_SET()
   if (shouldLog) { console.log('[live-score] competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)') }
 
@@ -239,6 +249,20 @@ async function collectGoals (matches: LiveMatch[], shouldLog: boolean, liveCreds
   if (filteredMatches.length > maxMatchesPerCycle) {
     if (shouldLog) { console.log('[live-score] WARNING: %d matches found, limiting to %d for API safety', filteredMatches.length, maxMatchesPerCycle) }
   }
+
+  const matchRecords: MatchRecord[] = matchesToProcess.map(m => {
+    const names = getTeamNames(m)
+    const scoreStr = m?.scores?.ft_score || m?.scores?.score || m?.ft_score || m?.score || null
+    return {
+      fixtureId: String(m.id),
+      competition: m?.competition?.name || m.competition_name || '',
+      homeTeam: names.home || 'Unknown',
+      awayTeam: names.away || 'Unknown',
+      status: m.status || 'UNKNOWN',
+      utcTimestamp: new Date(),
+      finalScore: scoreStr || null,
+    }
+  })
 
   const goals: GoalEvent[] = []
   for (const m of matchesToProcess) {
@@ -251,8 +275,8 @@ async function collectGoals (matches: LiveMatch[], shouldLog: boolean, liveCreds
 
   goals.sort((a, b) => new Date(b.utcTimestamp).getTime() - new Date(a.utcTimestamp).getTime())
 
-  if (shouldLog) { console.log('[live-score] goals emitted=%d (sorted by latest timestamp)', goals.length) }
-  return goals
+  if (shouldLog) { console.log('[live-score] goals emitted=%d matches=%d (sorted by latest timestamp)', goals.length, matchRecords.length) }
+  return { goals, matches: matchRecords }
 }
 
 function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
