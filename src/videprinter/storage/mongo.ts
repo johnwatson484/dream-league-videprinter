@@ -33,6 +33,9 @@ export async function initMongo (logger: Logger = console): Promise<boolean> {
   collection = db.collection<GoalEvent>(mongoCfg.collection)
   await collection.createIndex({ id: 1 }, { unique: true })
   await collection.createIndex({ utcTimestamp: -1 })
+  if (await collection.indexExists('utcTimestamp_1')) {
+    await collection.dropIndex('utcTimestamp_1')
+  }
   await collection.createIndex({ utcTimestamp: 1 }, { expireAfterSeconds: 1209600 })
   registerMetaCollection(db)
   await initMatchCollection(db)
