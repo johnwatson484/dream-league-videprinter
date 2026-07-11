@@ -1,5 +1,7 @@
 import type { GoalEvent, ListOptions } from '../types.ts'
 
+const DEFAULT_LIST_OPTIONS: ListOptions = { limit: 100, order: 'desc' }
+
 class EventsStore {
   limit: number
   events: GoalEvent[]
@@ -16,7 +18,7 @@ class EventsStore {
     }
   }
 
-  list (options: ListOptions = { limit: 100, order: 'desc' }): GoalEvent[] {
+  list (options: ListOptions = DEFAULT_LIST_OPTIONS): GoalEvent[] {
     const { limit = 100, order = 'desc' } = options
     const slice = this.events.slice(-limit)
     if (order === 'desc') { return slice.slice().reverse() }

@@ -4,15 +4,9 @@ import { fuzzyMatcher } from './fuzzy-matcher.ts'
 import logger from '../../logger.ts'
 
 class DreamLeagueService {
-  lastUpdateTime: number
-  updateInterval: number
-  isUpdating: boolean
-
-  constructor () {
-    this.lastUpdateTime = 0
-    this.updateInterval = 5 * 60 * 1000
-    this.isUpdating = false
-  }
+  lastUpdateTime = 0
+  updateInterval = 5 * 60 * 1000
+  isUpdating = false
 
   async initialize (): Promise<void> {
     try {

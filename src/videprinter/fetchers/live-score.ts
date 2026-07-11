@@ -138,7 +138,7 @@ function hasGoalsInMatch (match: LiveMatch): boolean {
 
 function parseScore (scoreStr: string | undefined | null): { home: number | null; away: number | null } {
   if (!scoreStr || !/\d+\s*-\s*\d+/.test(scoreStr)) { return { home: null, away: null } }
-  const [hs, as] = scoreStr.split('-').map(s => parseInt(s.trim(), 10))
+  const [hs, as] = scoreStr.split('-').map(s => Number.parseInt(s.trim(), 10))
   return { home: hs ?? null, away: as ?? null }
 }
 
@@ -175,7 +175,7 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): GoalEvent {
     fixtureId: String(match.id),
     competition: match?.competition?.name || match.competition_name || '',
     utcTimestamp: new Date(),
-    minute: parseInt(rawGoal.time || '', 10) || null,
+    minute: Number.parseInt(rawGoal.time || '', 10) || null,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
     concedingTeam: { name: scoringTeamGuess === names.home ? (names.away || 'Unknown') : (names.home || 'Unknown') },
     scorer: { name: rawGoal.scorer || 'Unknown', normalizedName: (rawGoal.scorer || 'Unknown').toLowerCase() },

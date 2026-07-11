@@ -18,26 +18,34 @@ function teamsMatch (a: string, b: string): boolean {
   return na.includes(nb) || nb.includes(na)
 }
 
+function addMatchToFixtures (fixtureTimestamps: Map<string, { teams: Set<string>; timestamp: Date }>, match: MatchRecord): void {
+  const entry = fixtureTimestamps.get(match.fixtureId) || { teams: new Set(), timestamp: match.utcTimestamp }
+  entry.teams.add(normalizeTeamName(match.homeTeam))
+  entry.teams.add(normalizeTeamName(match.awayTeam))
+  fixtureTimestamps.set(match.fixtureId, entry)
+}
+
+function addEventToFixtures (fixtureTimestamps: Map<string, { teams: Set<string>; timestamp: Date }>, event: GoalEvent): void {
+  if (!fixtureTimestamps.has(event.fixtureId)) {
+    fixtureTimestamps.set(event.fixtureId, { teams: new Set(), timestamp: event.utcTimestamp })
+  }
+  const entry = fixtureTimestamps.get(event.fixtureId)!
+  if (event.scoringTeam?.name) { entry.teams.add(normalizeTeamName(event.scoringTeam.name)) }
+  if (event.concedingTeam?.name) { entry.teams.add(normalizeTeamName(event.concedingTeam.name)) }
+  if (new Date(event.utcTimestamp) < new Date(entry.timestamp)) {
+    entry.timestamp = event.utcTimestamp
+  }
+}
+
 function buildTeamFirstMatchMap (matches: MatchRecord[], events: GoalEvent[]): Map<string, string> {
   const fixtureTimestamps = new Map<string, { teams: Set<string>; timestamp: Date }>()
 
   for (const match of matches) {
-    const entry = fixtureTimestamps.get(match.fixtureId) || { teams: new Set(), timestamp: match.utcTimestamp }
-    entry.teams.add(normalizeTeamName(match.homeTeam))
-    entry.teams.add(normalizeTeamName(match.awayTeam))
-    fixtureTimestamps.set(match.fixtureId, entry)
+    addMatchToFixtures(fixtureTimestamps, match)
   }
 
   for (const event of events) {
-    if (!fixtureTimestamps.has(event.fixtureId)) {
-      fixtureTimestamps.set(event.fixtureId, { teams: new Set(), timestamp: event.utcTimestamp })
-    }
-    const entry = fixtureTimestamps.get(event.fixtureId)!
-    if (event.scoringTeam?.name) { entry.teams.add(normalizeTeamName(event.scoringTeam.name)) }
-    if (event.concedingTeam?.name) { entry.teams.add(normalizeTeamName(event.concedingTeam.name)) }
-    if (new Date(event.utcTimestamp) < new Date(entry.timestamp)) {
-      entry.timestamp = event.utcTimestamp
-    }
+    addEventToFixtures(fixtureTimestamps, event)
   }
 
   const sorted = [...fixtureTimestamps.entries()].sort((a, b) =>
@@ -64,6 +72,51 @@ function findFirstFixtureForTeam (teamName: string, teamFirstFixture: Map<string
   return null
 }
 
+function countGoal (
+  event: GoalEvent,
+  teamFirstFixture: Map<string, string>,
+  goalCounts: Map<number, { playerId: number; player: string; team: string; goals: number; totalConfidence: number }>
+): void {
+  if (!event.potentialGoalFor?.playerId) { return }
+  const firstFixture = findFirstFixtureForTeam(event.potentialGoalFor.team, teamFirstFixture)
+  if (!firstFixture || event.fixtureId !== firstFixture) { return }
+  const existing = goalCounts.get(event.potentialGoalFor.playerId)
+  if (existing) {
+    existing.goals++
+    existing.totalConfidence += event.potentialGoalFor.confidence
+  } else {
+    goalCounts.set(event.potentialGoalFor.playerId, {
+      playerId: event.potentialGoalFor.playerId,
+      player: event.potentialGoalFor.player,
+      team: event.potentialGoalFor.team,
+      goals: 1,
+      totalConfidence: event.potentialGoalFor.confidence,
+    })
+  }
+}
+
+function countConcede (
+  event: GoalEvent,
+  teamFirstFixture: Map<string, string>,
+  concedeCounts: Map<number, { teamId: number; team: string; conceded: number; totalConfidence: number }>
+): void {
+  if (!event.potentialConcedingFor?.teamId) { return }
+  const firstFixture = findFirstFixtureForTeam(event.potentialConcedingFor.team, teamFirstFixture)
+  if (!firstFixture || event.fixtureId !== firstFixture) { return }
+  const existing = concedeCounts.get(event.potentialConcedingFor.teamId)
+  if (existing) {
+    existing.conceded++
+    existing.totalConfidence += event.potentialConcedingFor.confidence
+  } else {
+    concedeCounts.set(event.potentialConcedingFor.teamId, {
+      teamId: event.potentialConcedingFor.teamId,
+      team: event.potentialConcedingFor.team,
+      conceded: 1,
+      totalConfidence: event.potentialConcedingFor.confidence,
+    })
+  }
+}
+
 export function aggregateCupEvents (events: GoalEvent[], matches: MatchRecord[]): {
   goalsCup: { playerId: number; player: string; team: string; goals: number; confidence: number }[]
   concededCup: { teamId: number; team: string; conceded: number; confidence: number }[]
@@ -74,44 +127,8 @@ export function aggregateCupEvents (events: GoalEvent[], matches: MatchRecord[])
   const concedeCounts = new Map<number, { teamId: number; team: string; conceded: number; totalConfidence: number }>()
 
   for (const event of events) {
-    if (event.potentialGoalFor?.playerId) {
-      const playerTeam = event.potentialGoalFor.team
-      const firstFixture = findFirstFixtureForTeam(playerTeam, teamFirstFixture)
-      if (firstFixture && event.fixtureId === firstFixture) {
-        const existing = goalCounts.get(event.potentialGoalFor.playerId)
-        if (existing) {
-          existing.goals++
-          existing.totalConfidence += event.potentialGoalFor.confidence
-        } else {
-          goalCounts.set(event.potentialGoalFor.playerId, {
-            playerId: event.potentialGoalFor.playerId,
-            player: event.potentialGoalFor.player,
-            team: event.potentialGoalFor.team,
-            goals: 1,
-            totalConfidence: event.potentialGoalFor.confidence,
-          })
-        }
-      }
-    }
-
-    if (event.potentialConcedingFor?.teamId) {
-      const keeperTeam = event.potentialConcedingFor.team
-      const firstFixture = findFirstFixtureForTeam(keeperTeam, teamFirstFixture)
-      if (firstFixture && event.fixtureId === firstFixture) {
-        const existing = concedeCounts.get(event.potentialConcedingFor.teamId)
-        if (existing) {
-          existing.conceded++
-          existing.totalConfidence += event.potentialConcedingFor.confidence
-        } else {
-          concedeCounts.set(event.potentialConcedingFor.teamId, {
-            teamId: event.potentialConcedingFor.teamId,
-            team: event.potentialConcedingFor.team,
-            conceded: 1,
-            totalConfidence: event.potentialConcedingFor.confidence,
-          })
-        }
-      }
-    }
+    countGoal(event, teamFirstFixture, goalCounts)
+    countConcede(event, teamFirstFixture, concedeCounts)
   }
 
   const goalsCup = [...goalCounts.values()].map(g => ({

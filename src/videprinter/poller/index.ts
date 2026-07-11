@@ -54,19 +54,20 @@ async function loop (): Promise<number> {
   return emitted
 }
 
+async function runTickBody (): Promise<number> {
+  if (isQuietHours()) {
+    logger.info('[videprinter] skipping poll during quiet hours')
+    return 0
+  }
+
+  const emitted = await loop()
+  const remaining = await remainingRequestsToday()
+  logger.info(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
+  return emitted
+}
+
 export function startPoller (): void {
   const { pollLiveIntervalMs } = config.get('videprinter')
-  async function runTickBody (): Promise<number> {
-    if (isQuietHours()) {
-      logger.info('[videprinter] skipping poll during quiet hours')
-      return 0
-    }
-
-    const emitted = await loop()
-    const remaining = await remainingRequestsToday()
-    logger.info(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
-    return emitted
-  }
   async function tick (): Promise<void> {
     try {
       await runTickBody()

@@ -90,7 +90,7 @@ const route: ServerRoute = {
     const fromDate = new Date(from)
     const toDate = new Date(to)
 
-    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
       return h.response({ error: 'Invalid date format. Use ISO 8601.' }).code(400)
     }
 

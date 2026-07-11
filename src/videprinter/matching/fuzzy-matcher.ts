@@ -2,17 +2,10 @@ import Fuse from 'fuse.js'
 import type { DreamLeaguePlayer, DreamLeagueGoalkeeper, NormalizedPlayer, NormalizedTeam, PlayerMatch, GoalkeeperMatch } from '../types.ts'
 
 export class FuzzyMatcher {
-  playerFuse: Fuse<NormalizedPlayer> | null
-  teamFuse: Fuse<NormalizedTeam> | null
-  players: DreamLeaguePlayer[]
-  goalkeepers: DreamLeagueGoalkeeper[]
-
-  constructor () {
-    this.playerFuse = null
-    this.teamFuse = null
-    this.players = []
-    this.goalkeepers = []
-  }
+  playerFuse: Fuse<NormalizedPlayer> | null = null
+  teamFuse: Fuse<NormalizedTeam> | null = null
+  players: DreamLeaguePlayer[] = []
+  goalkeepers: DreamLeagueGoalkeeper[] = []
 
   updateData (players: DreamLeaguePlayer[], goalkeepers: DreamLeagueGoalkeeper[]): void {
     this.players = players
@@ -38,7 +31,7 @@ export class FuzzyMatcher {
     }
 
     const uniqueTeams: NormalizedTeam[] = goalkeepers.reduce<NormalizedTeam[]>((acc, gk) => {
-      if (!acc.find(t => t.name === gk.name)) {
+      if (!acc.some(t => t.name === gk.name)) {
         acc.push({
           name: gk.name,
           normalizedName: this.normalizeName(gk.name),
@@ -90,8 +83,8 @@ export class FuzzyMatcher {
       const playerNormalized = this.normalizeName(r.player.name)
 
       const scorerWords = scorerNormalized.split(' ').filter(w => w.length > 1)
-      const playerWords = playerNormalized.split(' ').filter(w => w.length > 1)
-      const commonWords = scorerWords.filter(w => playerWords.includes(w))
+      const playerWords = new Set(playerNormalized.split(' ').filter(w => w.length > 1))
+      const commonWords = scorerWords.filter(w => playerWords.has(w))
 
       return commonWords.length > 0 || r.confidence > 0.8
     })
