@@ -1,5 +1,6 @@
 import type { Collection, Db } from 'mongodb'
 import type { MatchRecord } from '../types.ts'
+import logger from '../../logger.ts'
 
 let collection: Collection<MatchRecord> | undefined
 
@@ -25,7 +26,7 @@ export async function saveMatches (matches: MatchRecord[] = []): Promise<void> {
   try {
     await collection.bulkWrite(ops, { ordered: false })
   } catch (err) {
-    console.error('[match-store] bulkWrite error', (err as Error).message)
+    logger.error('[match-store] bulkWrite error: %s', (err as Error).message)
   }
 }
 

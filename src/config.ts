@@ -34,6 +34,12 @@ const config = convict({
     default: 'Dream League',
     env: 'APP_NAME',
   },
+  logLevel: {
+    doc: 'Pino log level.',
+    format: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],
+    default: 'info',
+    env: 'LOG_LEVEL',
+  },
   videprinter: {
     enabled: {
       doc: 'Enable videprinter feature',

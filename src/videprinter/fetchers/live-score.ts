@@ -1,8 +1,11 @@
 import type { GoalEvent, MatchRecord } from '../types.ts'
 import config from '../../config.ts'
+import parentLogger from '../../logger.ts'
 import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.ts'
 import { batchCheckEventExists } from '../storage/mongo.ts'
 import crypto from 'node:crypto'
+
+const logger = parentLogger.child({ component: 'live-score' })
 
 export interface LiveScorePollResult {
   goals: GoalEvent[]
@@ -93,7 +96,7 @@ const COMP_ID_SET = (): Set<number> => {
 let loggedCompCheck = false
 
 function debugCompetitionIds (matches: LiveMatch[]): void {
-  if (!process.env.DEBUG_COMP_IDS || loggedCompCheck) { return }
+  if (loggedCompCheck) { return }
   loggedCompCheck = true
   try {
     const idMap = config.get('dataSource').liveScore.competitions as Record<string, unknown> || {}
@@ -105,15 +108,14 @@ function debugCompetitionIds (matches: LiveMatch[]): void {
       const cname = m?.competition?.name ?? m.competition_name
       if (cid != null) { seen.set(cid, cname) }
     }
-    console.log('[comp-id-debug] expected competitions from config:', expected)
-    console.log('[comp-id-debug] seen live competitions:', Object.fromEntries(seen))
+    logger.debug({ expected, seen: Object.fromEntries(seen) }, 'competition id check')
     const expectedIdsStr = expectedIds.map(String)
     const missing = expectedIdsStr.filter(id => !seen.has(id) && !seen.has(Number(id)))
-    if (missing.length) { console.log('[comp-id-debug] expected IDs not in current live sample:', missing) }
+    if (missing.length) { logger.debug({ missing }, 'expected IDs not in current live sample') }
     const unexpected = [...seen.keys()].filter(id => !expectedIdsStr.includes(String(id)))
-    if (unexpected.length) { console.log('[comp-id-debug] additional live competition IDs (not in config):', unexpected) }
+    if (unexpected.length) { logger.debug({ unexpected }, 'additional live competition IDs (not in config)') }
   } catch (err) {
-    console.warn('[comp-id-debug] failed to log competition id debug', (err as Error).message)
+    logger.warn({ err }, 'failed to log competition id debug')
   }
 }
 
@@ -190,23 +192,22 @@ export async function fetchLiveScoreGoals (fetcher: typeof fetch = fetch): Promi
 }
 
 export async function fetchLiveScoreData (fetcher: typeof fetch = fetch): Promise<LiveScorePollResult> {
-  const shouldLog = process.env.DEBUG_LIVE_SCORE === '1' || process.env.DEBUG_LIVE_SCORE === 'true' || config.get('isDev')
   const { url, ds } = buildLiveUrl()
-  if (shouldLog) { console.log('[live-score] fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host) }
+  logger.debug('fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host)
   if (!ds.liveScore.key || !ds.liveScore.secret) {
-    if (shouldLog) { console.log('[live-score] skip: missing API credentials') }
+    logger.debug('skip: missing API credentials')
     return { goals: [], matches: [] }
   }
   if (!(await canMakeExternalRequest())) {
-    if (shouldLog) { console.log('[live-score] skip: daily request cap reached') }
+    logger.debug('skip: daily request cap reached')
     return { goals: [], matches: [] }
   }
   await noteExternalRequest()
-  if (shouldLog) { console.log('[live-score] requesting %s', maskSecret(url)) }
-  const matches = await getLiveMatches(fetcher, url, shouldLog)
+  logger.debug('requesting %s', maskSecret(url))
+  const matches = await getLiveMatches(fetcher, url)
   if (!matches.length) { return { goals: [], matches: [] } }
   const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  return await collectGoalsAndMatches(matches, shouldLog, liveCreds)
+  return await collectGoalsAndMatches(matches, liveCreds)
 }
 
 function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataSource'>> } {
@@ -218,36 +219,36 @@ function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataS
 
 function maskSecret (url: string): string { return url.replace(/secret=[^&]*/i, 'secret=***') }
 
-async function getLiveMatches (fetcher: typeof fetch, url: string, shouldLog: boolean): Promise<LiveMatch[]> {
+async function getLiveMatches (fetcher: typeof fetch, url: string): Promise<LiveMatch[]> {
   const res = await fetcher(url)
-  if (shouldLog) { console.log('[live-score] response status=%s ok=%s', res.status, res.ok) }
+  logger.debug('response status=%s ok=%s', res.status, res.ok)
   if (!res.ok) { return [] }
   try {
     const json = await res.json()
     const matches = json?.data?.match
     if (!Array.isArray(matches)) {
-      if (shouldLog) { console.log('[live-score] no matches array in response') }
+      logger.debug('no matches array in response')
       return []
     }
-    if (shouldLog) { console.log('[live-score] matches received=%d', matches.length) }
+    logger.debug('matches received=%d', matches.length)
     debugCompetitionIds(matches)
     return matches as LiveMatch[]
   } catch (e) {
-    if (shouldLog) { console.log('[live-score] json parse error: %s', (e as Error)?.message || e) }
+    logger.debug('json parse error: %s', (e as Error)?.message || e)
     return []
   }
 }
 
-async function collectGoalsAndMatches (matches: LiveMatch[], shouldLog: boolean, liveCreds: LiveCreds): Promise<LiveScorePollResult> {
+async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCreds): Promise<LiveScorePollResult> {
   const compIds = COMP_ID_SET()
-  if (shouldLog) { console.log('[live-score] competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)') }
+  logger.debug('competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)')
 
   const maxMatchesPerCycle = 80
   const filteredMatches = matches.filter(m => shouldIncludeMatch(m, compIds))
   const matchesToProcess = filteredMatches.slice(0, maxMatchesPerCycle)
 
   if (filteredMatches.length > maxMatchesPerCycle) {
-    if (shouldLog) { console.log('[live-score] WARNING: %d matches found, limiting to %d for API safety', filteredMatches.length, maxMatchesPerCycle) }
+    logger.warn('%d matches found, limiting to %d for API safety', filteredMatches.length, maxMatchesPerCycle)
   }
 
   const matchRecords: MatchRecord[] = matchesToProcess.map(m => {
@@ -268,14 +269,14 @@ async function collectGoalsAndMatches (matches: LiveMatch[], shouldLog: boolean,
   for (const m of matchesToProcess) {
     const compId = m?.competition?.id ?? m.competition_id
     const compName = m?.competition?.name ?? m.competition_name
-    if (shouldLog) { console.log('[live-score] processing match id=%s comp=%s(%s)', m.id, compName, compId) }
-    const mGoals = await goalsForMatch(m, shouldLog, liveCreds)
+    logger.debug('processing match id=%s comp=%s(%s)', m.id, compName, compId)
+    const mGoals = await goalsForMatch(m, liveCreds)
     goals.push(...mGoals)
   }
 
   goals.sort((a, b) => new Date(b.utcTimestamp).getTime() - new Date(a.utcTimestamp).getTime())
 
-  if (shouldLog) { console.log('[live-score] goals emitted=%d matches=%d (sorted by latest timestamp)', goals.length, matchRecords.length) }
+  logger.debug('goals emitted=%d matches=%d (sorted by latest timestamp)', goals.length, matchRecords.length)
   return { goals, matches: matchRecords }
 }
 
@@ -284,20 +285,20 @@ function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
   return !(compIds.size && !compIds.has(Number(compId)))
 }
 
-async function goalsForMatch (match: LiveMatch, shouldLog: boolean, liveCreds: LiveCreds): Promise<GoalEvent[]> {
+async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<GoalEvent[]> {
   let events: NormalizeInput[] = extractGoalEvents(match)
   if (!events.length && hasGoalsInMatch(match) && match?.urls?.events) {
-    if (shouldLog) { console.log('[live-score] fetching events for match id=%s (score indicates goals present)', match.id) }
+    logger.debug('fetching events for match id=%s (score indicates goals present)', match.id)
     try {
-      events = await fetchMatchEvents(match, liveCreds, shouldLog)
+      events = await fetchMatchEvents(match, liveCreds)
     } catch (err) {
-      if (shouldLog) { console.log('[live-score] events fetch failed for match %s: %s', match.id, (err as Error)?.message || err) }
+      logger.debug('events fetch failed for match %s: %s', match.id, (err as Error)?.message || err)
       events = []
     }
-  } else if (shouldLog && events.length) {
-    console.log('[live-score] using embedded events for match id=%s count=%d', match.id, events.length)
-  } else if (shouldLog && !hasGoalsInMatch(match)) {
-    console.log('[live-score] skipping events fetch for match id=%s (no goals in score)', match.id)
+  } else if (events.length) {
+    logger.debug('using embedded events for match id=%s count=%d', match.id, events.length)
+  } else if (!hasGoalsInMatch(match)) {
+    logger.debug('skipping events fetch for match id=%s (no goals in score)', match.id)
   }
 
   const normalizedGoals = events.map(g => normalizeGoal(match, g))
@@ -309,16 +310,16 @@ async function goalsForMatch (match: LiveMatch, shouldLog: boolean, liveCreds: L
   const seenIds = new Set<string>()
   for (const goal of normalizedGoals) {
     if (existingIds.has(goal.id)) {
-      if (shouldLog) { console.log('[live-score] goal already exists in database: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute) }
+      logger.debug('goal already exists in database: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
       continue
     }
 
     if (!seenIds.has(goal.id)) {
       seenIds.add(goal.id)
       uniqueGoals.push(goal)
-      if (shouldLog) { console.log('[live-score] new goal added: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute) }
-    } else if (shouldLog) {
-      console.log('[live-score] duplicate goal in match filtered: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+      logger.debug('new goal added: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+    } else {
+      logger.debug('duplicate goal in match filtered: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
     }
   }
 
@@ -337,26 +338,26 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
   return url + sep + params.join('&')
 }
 
-async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, shouldLog: boolean, fetcher: typeof fetch = fetch): Promise<MappedGoal[]> {
+async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MappedGoal[]> {
   try {
     if (!(await canMakeExternalRequest())) {
-      if (shouldLog) { console.log('[live-score] skip events: daily request cap reached for match id=%s', match.id) }
+      logger.debug('skip events: daily request cap reached for match id=%s', match.id)
       return []
     }
     await noteExternalRequest()
     const url = appendCredsToUrl(match.urls!.events!, liveCreds?.key, liveCreds?.secret)
-    if (shouldLog) { console.log('[live-score] events requesting %s', maskSecret(url)) }
+    logger.debug('events requesting %s', maskSecret(url))
     const res = await fetcher(url)
-    if (shouldLog) { console.log('[live-score] events response status=%s ok=%s', res.status, res.ok) }
+    logger.debug('events response status=%s ok=%s', res.status, res.ok)
     if (!res.ok) { return [] }
     const json = await res.json()
     const events: RawEvent[] = json?.data?.event || json?.data?.events || []
     const ordered = orderEvents(events)
     const mapped = mapGoalEvents(ordered, match)
-    if (shouldLog) { console.log('[live-score] events parsed for match id=%s count=%d', match.id, mapped.length) }
+    logger.debug('events parsed for match id=%s count=%d', match.id, mapped.length)
     return mapped
   } catch (err) {
-    if (shouldLog) { console.log('[live-score] events fetch/parse error for match %s: %s', match?.id, (err as Error)?.message || err) }
+    logger.debug('events fetch/parse error for match %s: %s', match?.id, (err as Error)?.message || err)
     return []
   }
 }

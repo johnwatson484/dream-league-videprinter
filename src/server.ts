@@ -3,6 +3,7 @@ import type { Server } from '@hapi/hapi'
 import Joi from 'joi'
 import { registerPlugins } from './plugins/index.ts'
 import config from './config.ts'
+import logger from './logger.ts'
 import { initMongo, closeMongo } from './videprinter/storage/mongo.ts'
 
 async function createServer (): Promise<Server> {
@@ -24,7 +25,7 @@ async function createServer (): Promise<Server> {
   server.validator(Joi)
   await registerPlugins(server)
 
-  server.ext('onPreStart', async () => { await initMongo((server.logger || console) as any) })
+  server.ext('onPreStart', async () => { await initMongo(logger) })
   server.ext('onPostStop', async () => { await closeMongo() })
 
   return server
