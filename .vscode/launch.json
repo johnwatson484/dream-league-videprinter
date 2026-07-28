@@ -12,7 +12,7 @@
         "--inspect"
       ],
       "env": { "NODE_ENV": "development" },
-      "program": "${workspaceFolder}/src/index.js",
+      "program": "${workspaceFolder}/src/index.ts",
       "restart": true,
       "skipFiles": ["<node_internals>/**"]
     },
