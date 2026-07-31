@@ -34,9 +34,19 @@ export async function initMongo (logger: Logger = defaultLogger): Promise<boolea
 
 export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
   if (!collection || !events.length) { return }
-  const ops = events.map(e => ({ updateOne: { filter: { id: e.id }, update: { $setOnInsert: e }, upsert: true } }))
+  // Enrichment can improve between polls, so let it overwrite while the event itself stays immutable.
+  const ops = events.map(({ potentialGoalFor, potentialConcedingFor, ...event }) => ({
+    updateOne: {
+      filter: { id: event.id },
+      update: {
+        $setOnInsert: event,
+        $set: { potentialGoalFor: potentialGoalFor ?? null, potentialConcedingFor: potentialConcedingFor ?? null },
+      },
+      upsert: true,
+    },
+  }))
   try {
-    await collection.bulkWrite(ops, { ordered: false })
+    await collection.bulkWrite(ops as any, { ordered: false })
   } catch (err) {
     defaultLogger.error('[mongo] bulkWrite error: %s', (err as Error).message)
   }

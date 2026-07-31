@@ -15,6 +15,7 @@ services:
       - .env
     environment:
       MONGO_URI: mongodb://dream-league-videprinter-mongo:27017
+      MONGO_ENABLED: 'true'
     depends_on:
       dream-league-videprinter-mongo:
         condition: service_healthy

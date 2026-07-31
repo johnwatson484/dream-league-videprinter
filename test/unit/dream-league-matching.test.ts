@@ -13,6 +13,7 @@ describe('FuzzyMatcher', () => {
         name: 'Allen, Taylor',
         position: 'Defender',
         team: 'Wycombe Wanderers',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: false
       },
@@ -21,6 +22,7 @@ describe('FuzzyMatcher', () => {
         name: 'McCrorie, Ross',
         position: 'Defender',
         team: 'Bristol City',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: false
       },
@@ -29,6 +31,7 @@ describe('FuzzyMatcher', () => {
         name: 'Fletcher, Ashley',
         position: 'Forward',
         team: 'Blackpool',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: false
       },
@@ -37,6 +40,7 @@ describe('FuzzyMatcher', () => {
         name: 'Smith, John',
         position: 'Forward',
         team: 'Blackpool',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: true
       }
@@ -46,18 +50,21 @@ describe('FuzzyMatcher', () => {
       {
         teamId: 18,
         name: 'Blackburn Rovers',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: false
       },
       {
         teamId: 58,
         name: 'Notts County',
+        managerId: 1,
         manager: 'Billy Gordon',
         substitute: true
       },
       {
         teamId: 5,
         name: 'Luton Town',
+        managerId: 2,
         manager: 'Bob Brown',
         substitute: false
       }

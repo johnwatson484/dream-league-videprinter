@@ -9,6 +9,7 @@ const route: ServerRoute = {
   options: {
     description: 'Return recent videprinter goal events for replay',
     auth: false,
+    cors: true,
     tags: ['videprinter'],
   },
   handler: async (request, h) => {
