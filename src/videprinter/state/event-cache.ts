@@ -20,6 +20,11 @@ class EventCache {
       if (oldest) { this.ids.delete(oldest) }
     }
   }
+
+  clear (): void {
+    this.ids.clear()
+    this.queue = []
+  }
 }
 
 export const eventCache = new EventCache()

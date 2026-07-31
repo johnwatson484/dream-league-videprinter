@@ -36,6 +36,7 @@ export class FuzzyMatcher {
           name: gk.name,
           normalizedName: this.normalizeName(gk.name),
           teamId: gk.teamId,
+          managerId: gk.managerId,
           manager: gk.manager,
           substitute: gk.substitute
         })

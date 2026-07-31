@@ -4,6 +4,7 @@ import config from '../../config.ts'
 import { fetchEventsByDateRange } from '../../videprinter/storage/mongo.ts'
 import { fetchMatchesByDateRange } from '../../videprinter/storage/match-store.ts'
 import { aggregateCupEvents } from '../../videprinter/aggregation/cup-summary.ts'
+import { aggregateEventsByManager } from '../../videprinter/aggregation/manager-summary.ts'
 import type { GoalEvent } from '../../videprinter/types.ts'
 
 function aggregateEvents (events: GoalEvent[]): {
@@ -79,6 +80,7 @@ const route: ServerRoute = {
   options: {
     description: 'Return aggregated goal/concede data for a date range',
     auth: false,
+    cors: true,
     tags: ['videprinter'],
   },
   handler: async (request, h) => {
@@ -108,11 +110,12 @@ const route: ServerRoute = {
     }
 
     const leagueResult = aggregateEvents(events)
+    const managers = aggregateEventsByManager(events)
 
     const matches = mongoCfg.enabled ? await fetchMatchesByDateRange(fromDate, toDate) : []
     const cupResult = aggregateCupEvents(events, matches)
 
-    return { ...leagueResult, ...cupResult }
+    return { ...leagueResult, ...cupResult, managers }
   },
 }
 

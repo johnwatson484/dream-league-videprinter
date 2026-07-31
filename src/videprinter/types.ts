@@ -12,6 +12,7 @@ export interface GoalEvent {
   phase: string
   source: string
   potentialGoalFor?: {
+    managerId: number
     manager: string
     player: string
     playerId: number
@@ -20,6 +21,7 @@ export interface GoalEvent {
     substitute: boolean
   }
   potentialConcedingFor?: {
+    managerId: number
     manager: string
     team: string
     teamId: number
@@ -33,6 +35,7 @@ export interface DreamLeaguePlayer {
   name: string
   position: string
   team: string
+  managerId: number
   manager: string
   substitute: boolean
 }
@@ -40,6 +43,7 @@ export interface DreamLeaguePlayer {
 export interface DreamLeagueGoalkeeper {
   teamId: number
   name: string
+  managerId: number
   manager: string
   substitute: boolean
 }

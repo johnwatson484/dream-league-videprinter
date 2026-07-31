@@ -5,15 +5,15 @@ import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
 import { fetchLiveScoreData } from '../fetchers/live-score.ts'
 import { videprinterBroadcaster } from '../state/broadcaster.ts'
 import { eventsStore } from '../state/events-store.ts'
+import { eventCache } from '../state/event-cache.ts'
 import { saveEvents } from '../storage/mongo.ts'
 import { saveMatches } from '../storage/match-store.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
-function isQuietHours (): boolean {
-  const { quietHoursStart, quietHoursEnd } = config.get('videprinter')
-  const now = new Date()
-  const currentHour = now.getHours()
+export function isQuietHours (now: Date = new Date()): boolean {
+  const { quietHoursStart, quietHoursEnd, timezone } = config.get('videprinter')
+  const currentHour = hourIn(timezone, now)
 
   if (quietHoursStart > quietHoursEnd) {
     return currentHour >= quietHoursStart || currentHour < quietHoursEnd
@@ -22,7 +22,20 @@ function isQuietHours (): boolean {
   }
 }
 
-async function loop (): Promise<number> {
+// The host clock is UTC in production, so read the hour in the league's own timezone
+// or the window drifts by an hour over British Summer Time.
+function hourIn (timezone: string, now: Date): number {
+  try {
+    // h23 rather than hour12:false, which reports midnight as 24 in some locales.
+    const hour = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: 'numeric', hourCycle: 'h23' }).format(now)
+    return Number.parseInt(hour, 10)
+  } catch {
+    logger.warn(`[videprinter] unknown timezone ${timezone}, falling back to host time`)
+    return now.getHours()
+  }
+}
+
+export async function runPollCycle (): Promise<number> {
   const { provider } = config.get('dataSource')
   let goals: GoalEvent[] = []
   if (provider === 'mock') {
@@ -35,23 +48,24 @@ async function loop (): Promise<number> {
     }
   }
 
-  let emitted = 0
+  const enhancedGoals: GoalEvent[] = []
   for (const goal of goals) {
+    // Mongo dedupes on read, but it is optional, so guard broadcasts in process too.
+    if (eventCache.has(goal.id)) { continue }
+    eventCache.add(goal.id)
+
     const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
 
     videprinterBroadcaster.emit('goal', enhancedGoal)
     eventsStore.add(enhancedGoal)
-    emitted++
+    enhancedGoals.push(enhancedGoal)
   }
 
-  if (goals.length > 0) {
-    const enhancedGoals = await Promise.all(
-      goals.map(goal => dreamLeagueService.enhanceGoal(goal))
-    )
+  if (enhancedGoals.length > 0) {
     await saveEvents(enhancedGoals)
   }
 
-  return emitted
+  return enhancedGoals.length
 }
 
 async function runTickBody (): Promise<number> {
@@ -60,7 +74,7 @@ async function runTickBody (): Promise<number> {
     return 0
   }
 
-  const emitted = await loop()
+  const emitted = await runPollCycle()
   const remaining = await remainingRequestsToday()
   logger.info(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
   return emitted

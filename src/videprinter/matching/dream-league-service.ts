@@ -54,6 +54,7 @@ class DreamLeagueService {
       if (playerMatches.length > 0) {
         const bestPlayerMatch = playerMatches[0]!
         enhanced.potentialGoalFor = {
+          managerId: bestPlayerMatch.player.managerId,
           manager: bestPlayerMatch.player.manager,
           player: bestPlayerMatch.player.name,
           playerId: bestPlayerMatch.player.playerId,
@@ -70,6 +71,7 @@ class DreamLeagueService {
       if (goalkeeperMatches.length > 0) {
         const bestGoalkeeperMatch = goalkeeperMatches[0]!
         enhanced.potentialConcedingFor = {
+          managerId: bestGoalkeeperMatch.team.managerId,
           manager: bestGoalkeeperMatch.team.manager,
           team: bestGoalkeeperMatch.team.name,
           teamId: bestGoalkeeperMatch.team.teamId,

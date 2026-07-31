@@ -64,6 +64,12 @@ const config = convict({
       format: 'nat',
       default: 11, // 11am
       env: 'VIDEPRINTER_QUIET_END',
+    },
+    timezone: {
+      doc: 'IANA timezone the quiet hours are expressed in',
+      format: String,
+      default: 'Europe/London',
+      env: 'VIDEPRINTER_TIMEZONE',
     }
   },
   dataSource: {
