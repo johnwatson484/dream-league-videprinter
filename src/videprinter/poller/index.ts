@@ -11,15 +11,27 @@ import { saveMatches } from '../storage/match-store.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
-function isQuietHours (): boolean {
-  const { quietHoursStart, quietHoursEnd } = config.get('videprinter')
-  const now = new Date()
-  const currentHour = now.getHours()
+export function isQuietHours (now: Date = new Date()): boolean {
+  const { quietHoursStart, quietHoursEnd, timezone } = config.get('videprinter')
+  const currentHour = hourIn(timezone, now)
 
   if (quietHoursStart > quietHoursEnd) {
     return currentHour >= quietHoursStart || currentHour < quietHoursEnd
   } else {
     return currentHour >= quietHoursStart && currentHour < quietHoursEnd
+  }
+}
+
+// The host clock is UTC in production, so read the hour in the league's own timezone
+// or the window drifts by an hour over British Summer Time.
+function hourIn (timezone: string, now: Date): number {
+  try {
+    // h23 rather than hour12:false, which reports midnight as 24 in some locales.
+    const hour = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: 'numeric', hourCycle: 'h23' }).format(now)
+    return Number.parseInt(hour, 10)
+  } catch {
+    logger.warn(`[videprinter] unknown timezone ${timezone}, falling back to host time`)
+    return now.getHours()
   }
 }
 

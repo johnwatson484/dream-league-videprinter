@@ -28,6 +28,8 @@ interface RawGoal {
 interface LiveMatch {
   id: string | number
   status?: string
+  scheduled?: string
+  added?: string
   competition?: { id?: string | number; name?: string }
   competition_id?: string | number
   competition_name?: string
@@ -162,10 +164,37 @@ function inferScoringTeam (match: LiveMatch, homeScore: number | null, awayScore
   return rawGoal.scorer || null
 }
 
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+
+// `scheduled` is the kick-off time of day in UTC and `added` is when the match joined the
+// live feed, roughly 15 minutes before kick-off, so `added` supplies the missing date.
+function resolveKickoff (match: LiveMatch): Date | null {
+  const scheduled = /^(\d{1,2}):(\d{2})$/.exec((match.scheduled || '').trim())
+  const added = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec((match.added || '').trim())
+  if (!scheduled || !added) { return null }
+
+  const addedMs = Date.UTC(Number(added[1]), Number(added[2]) - 1, Number(added[3]), Number(added[4]), Number(added[5]))
+  let kickoffMs = Date.UTC(Number(added[1]), Number(added[2]) - 1, Number(added[3]), Number(scheduled[1]), Number(scheduled[2]))
+  // A match added late in the evening for a kick-off just after midnight rolls into the next day.
+  if (kickoffMs < addedMs - 12 * HOUR_MS) { kickoffMs += DAY_MS }
+
+  return Number.isNaN(kickoffMs) ? null : new Date(kickoffMs)
+}
+
+// Approximate: ignores stoppage and the half-time break, but it orders goals across
+// matches with different kick-offs, which the ingest time cannot do.
+function goalTimestamp (match: LiveMatch, minute: number | null): Date {
+  const kickoff = resolveKickoff(match)
+  if (!kickoff || minute == null) { return new Date() }
+  return new Date(kickoff.getTime() + minute * 60 * 1000)
+}
+
 function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): GoalEvent {
   const { home: homeScore, away: awayScore } = parseScore(rawGoal.score)
   const scoringTeamGuess = inferScoringTeam(match, homeScore, awayScore, rawGoal)
   const names = getTeamNames(match)
+  const minute = Number.parseInt(rawGoal.time || '', 10) || null
 
   const baseStable = `${match.id}-${rawGoal.time}-${(rawGoal.scorer || '').toLowerCase()}-${rawGoal.score}`
   const stableHash = crypto.createHash('sha1').update(baseStable).digest('hex').slice(0, 16)
@@ -174,8 +203,8 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): GoalEvent {
     id: `${match.id}-${stableHash}`,
     fixtureId: String(match.id),
     competition: match?.competition?.name || match.competition_name || '',
-    utcTimestamp: new Date(),
-    minute: Number.parseInt(rawGoal.time || '', 10) || null,
+    utcTimestamp: goalTimestamp(match, minute),
+    minute,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
     concedingTeam: { name: scoringTeamGuess === names.home ? (names.away || 'Unknown') : (names.home || 'Unknown') },
     scorer: { name: rawGoal.scorer || 'Unknown', normalizedName: (rawGoal.scorer || 'Unknown').toLowerCase() },
@@ -260,7 +289,7 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
       homeTeam: names.home || 'Unknown',
       awayTeam: names.away || 'Unknown',
       status: m.status || 'UNKNOWN',
-      utcTimestamp: new Date(),
+      utcTimestamp: resolveKickoff(m) || new Date(),
       finalScore: scoreStr || null,
     }
   })
@@ -274,9 +303,10 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
     goals.push(...mGoals)
   }
 
-  goals.sort((a, b) => new Date(b.utcTimestamp).getTime() - new Date(a.utcTimestamp).getTime())
+  // Oldest first: consumers prepend each goal to the feed, so the newest ends up on top.
+  goals.sort((a, b) => new Date(a.utcTimestamp).getTime() - new Date(b.utcTimestamp).getTime())
 
-  logger.debug('goals emitted=%d matches=%d (sorted by latest timestamp)', goals.length, matchRecords.length)
+  logger.debug('goals emitted=%d matches=%d (oldest first)', goals.length, matchRecords.length)
   return { goals, matches: matchRecords }
 }
 
