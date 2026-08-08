@@ -7,6 +7,7 @@ import csp from './content-security-policy.ts'
 import headers from './headers.ts'
 import errors from './errors.ts'
 import views from './views.ts'
+import auth from './auth.ts'
 import router from './router.ts'
 import pulse from './pulse.ts'
 
@@ -20,6 +21,7 @@ async function registerPlugins (server: Server): Promise<void> {
     errors,
     headers,
     views,
+    auth,
     router,
     pulse
   ]

@@ -3,6 +3,16 @@ import convictFormatWithValidator from 'convict-format-with-validator'
 
 convict.addFormats(convictFormatWithValidator)
 
+convict.addFormat({
+  name: 'required-string',
+  validate: (val) => {
+    if (!val || val.length < 32) {
+      throw new Error('must be at least 32 characters')
+    }
+  },
+  coerce: (val) => val,
+})
+
 const config = convict({
   env: {
     doc: 'The application environment.',
@@ -39,6 +49,13 @@ const config = convict({
     format: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],
     default: 'info',
     env: 'LOG_LEVEL',
+  },
+  apiKey: {
+    doc: 'API key required to call admin endpoints (e.g. /videprinter/rematch).',
+    format: 'required-string',
+    default: '',
+    env: 'API_KEY',
+    sensitive: true,
   },
   videprinter: {
     enabled: {

@@ -61,6 +61,14 @@ export async function fetchRecentEvents (limit = 100): Promise<GoalEvent[]> {
   return docs as unknown as GoalEvent[]
 }
 
+export async function fetchAllEvents (): Promise<GoalEvent[]> {
+  if (!collection) { return [] }
+  const docs = await collection.find({}, { projection: { _id: 0 } })
+    .sort({ utcTimestamp: -1 })
+    .toArray()
+  return docs as unknown as GoalEvent[]
+}
+
 export async function fetchEventsByDateRange (from: Date, to: Date): Promise<GoalEvent[]> {
   if (!collection) { return [] }
   const docs = await collection.find(

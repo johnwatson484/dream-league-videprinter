@@ -39,6 +39,21 @@ Switch back to mock at any time (or default):
 export USE_MOCK=true
 ```
 
+## Admin: rematching goals
+
+`POST /videprinter/rematch` re-fetches the current Dream League teamsheets (bypassing the normal
+5-minute cache) and re-runs matching against every stored goal event. Use it when a goal was scored
+before a manager's teamsheet was corrected, so the event was matched against the wrong player/team.
+
+The route requires an `x-api-key` header matching the `API_KEY` env var:
+
+```bash
+curl -X POST -H "x-api-key: $API_KEY" http://localhost:3002/videprinter/rematch
+```
+
+`API_KEY` is required - the app will not start without it. It must match the `VIDEPRINTER_API_KEY`
+env var configured in dream-league-web, which calls this endpoint on an admin's behalf.
+
 ## Running application
 
 ### Docker
