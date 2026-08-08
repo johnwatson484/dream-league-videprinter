@@ -1,7 +1,8 @@
 import { defineConfig, configDefaults } from 'vitest/config'
 
 const sharedEnv = {
-  NODE_ENV: 'test'
+  NODE_ENV: 'test',
+  API_KEY: 'test-api-key-at-least-32-characters-long!!'
 }
 
 const coverageConfig = {

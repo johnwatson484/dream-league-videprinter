@@ -24,6 +24,17 @@ class EventsStore {
     if (order === 'desc') { return slice.slice().reverse() }
     return slice
   }
+
+  all (): GoalEvent[] {
+    return this.events.slice()
+  }
+
+  update (event: GoalEvent): void {
+    const index = this.events.findIndex(existing => existing.id === event.id)
+    if (index !== -1) {
+      this.events[index] = event
+    }
+  }
 }
 
 export const eventsStore = new EventsStore()

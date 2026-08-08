@@ -1,5 +1,5 @@
 import type { GoalEvent } from '../types.ts'
-import { fetchDreamLeagueTeams } from '../fetchers/dream-league.ts'
+import { fetchDreamLeagueTeams, clearCache } from '../fetchers/dream-league.ts'
 import { fuzzyMatcher } from './fuzzy-matcher.ts'
 import logger from '../../logger.ts'
 
@@ -38,6 +38,14 @@ class DreamLeagueService {
     } finally {
       this.isUpdating = false
     }
+  }
+
+  // Bypasses both this service's interval and the fetcher's own cache so an admin-triggered
+  // rematch always uses the latest teamsheets.
+  async forceRefresh (): Promise<void> {
+    clearCache()
+    this.lastUpdateTime = 0
+    await this.updateDreamLeagueData()
   }
 
   async enhanceGoal (goal: GoalEvent): Promise<GoalEvent> {

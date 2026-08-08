@@ -83,6 +83,20 @@ export interface MatchRecord {
   finalScore: string | null
 }
 
+export interface RematchSummary {
+  eventsProcessed: number
+  eventsChanged: number
+  unmatched: number
+  teamsheet: {
+    lastUpdate: string
+    isUpdating: boolean
+    nextUpdateDue: string
+    playersLoaded: number
+    goalkeepersLoaded: number
+    uniqueManagers: number
+  }
+}
+
 export interface ListOptions {
   limit?: number | undefined
   order?: 'asc' | 'desc' | undefined
