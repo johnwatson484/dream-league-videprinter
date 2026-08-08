@@ -13,8 +13,10 @@ const config = (await import('../../src/config.ts')).default
 
 interface MatchOverrides {
   id?: number
+  status?: string
   scheduled?: string | undefined
   added?: string | undefined
+  scores?: { score: string }
   goals?: { time: string; scorer: string; score: string; home_away: string }[]
 }
 
@@ -113,5 +115,23 @@ describe('goal timestamps', () => {
 
     expect(goals[0]!.minute).toBeNull()
     expect(goals[0]!.utcTimestamp.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  test('excludes penalty shootout kicks that repeat the final score', async () => {
+    const wentToPenalties = match({
+      status: 'FINISHED',
+      scores: { score: '1 - 1' },
+      goals: [
+        { time: '23', scorer: 'Fletcher, Ashley', score: '1 - 0', home_away: 'h' },
+        { time: '67', scorer: 'Doyle, Eoin', score: '1 - 1', home_away: 'a' },
+        { time: '120', scorer: 'Fletcher, Ashley', score: '1 - 1', home_away: 'h' },
+        { time: '121', scorer: 'Doyle, Eoin', score: '1 - 1', home_away: 'a' }
+      ]
+    })
+
+    const { goals } = await fetchLiveScoreData(fetcherReturning([wentToPenalties]))
+
+    expect(goals).toHaveLength(2)
+    expect(goals.map(g => g.scoreAfterEvent)).toEqual([{ home: 1, away: 0 }, { home: 1, away: 1 }])
   })
 })
