@@ -117,15 +117,15 @@ describe('goal timestamps', () => {
     expect(goals[0]!.utcTimestamp.getTime()).toBeGreaterThanOrEqual(before)
   })
 
-  test('excludes penalty shootout kicks that repeat the final score', async () => {
+  test('excludes penalty shootout kicks reported at minute 120, even though the score keeps climbing normally', async () => {
     const wentToPenalties = match({
       status: 'FINISHED',
       scores: { score: '1 - 1' },
       goals: [
         { time: '23', scorer: 'Fletcher, Ashley', score: '1 - 0', home_away: 'h' },
         { time: '67', scorer: 'Doyle, Eoin', score: '1 - 1', home_away: 'a' },
-        { time: '120', scorer: 'Fletcher, Ashley', score: '1 - 1', home_away: 'h' },
-        { time: '121', scorer: 'Doyle, Eoin', score: '1 - 1', home_away: 'a' }
+        { time: '120', scorer: 'Fletcher, Ashley', score: '1 - 2', home_away: 'h' },
+        { time: '120', scorer: 'Doyle, Eoin', score: '2 - 2', home_away: 'a' }
       ]
     })
 
