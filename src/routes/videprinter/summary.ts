@@ -5,6 +5,7 @@ import { fetchEventsByDateRange } from '../../videprinter/storage/mongo.ts'
 import { fetchMatchesByDateRange } from '../../videprinter/storage/match-store.ts'
 import { aggregateCupEvents } from '../../videprinter/aggregation/cup-summary.ts'
 import { aggregateEventsByManager } from '../../videprinter/aggregation/manager-summary.ts'
+import { excludeShootoutGoals } from '../../videprinter/aggregation/exclude-shootout-goals.ts'
 import type { GoalEvent } from '../../videprinter/types.ts'
 
 function aggregateEvents (events: GoalEvent[]): {
@@ -108,6 +109,8 @@ const route: ServerRoute = {
         return ts >= fromDate && ts <= toDate
       })
     }
+
+    events = excludeShootoutGoals(events)
 
     const leagueResult = aggregateEvents(events)
     const managers = aggregateEventsByManager(events)

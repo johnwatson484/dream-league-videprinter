@@ -34,4 +34,18 @@ describe('videprinter history', () => {
     const body = JSON.parse(res.payload)
     expect(Array.isArray(body.events)).toBe(true)
   })
+
+  test('excludes penalty shootout goals that repeat the final score', async () => {
+    const server = await createServer()
+    eventsStore.add({ id: 'shootout-real-goal', fixtureId: 'shootout-fixture', competition: 'Cup', utcTimestamp: new Date('2026-08-06T12:00:00.000Z'), minute: 30, scoringTeam: { name: 'A' }, concedingTeam: { name: 'B' }, scorer: { name: 'X', normalizedName: 'x' }, assist: null, scoreAfterEvent: { home: 1, away: 1 }, phase: 'LIVE', source: 'test' } satisfies GoalEvent)
+    eventsStore.add({ id: 'shootout-kick', fixtureId: 'shootout-fixture', competition: 'Cup', utcTimestamp: new Date('2026-08-06T14:00:00.000Z'), minute: null, scoringTeam: { name: 'A' }, concedingTeam: { name: 'B' }, scorer: { name: 'X', normalizedName: 'x' }, assist: null, scoreAfterEvent: { home: 1, away: 1 }, phase: 'LIVE', source: 'test' } satisfies GoalEvent)
+
+    const res = await server.inject({ method: 'GET', url: '/videprinter/history?from=2026-08-06T00:00:00.000Z&to=2026-08-06T23:59:59.999Z' })
+
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.payload)
+    const ids = body.events.map((e: GoalEvent) => e.id)
+    expect(ids).toContain('shootout-real-goal')
+    expect(ids).not.toContain('shootout-kick')
+  })
 })

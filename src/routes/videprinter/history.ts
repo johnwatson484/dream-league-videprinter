@@ -2,6 +2,7 @@ import type { ServerRoute } from '@hapi/hapi'
 import { eventsStore } from '../../videprinter/state/events-store.ts'
 import config from '../../config.ts'
 import { fetchRecentEvents, fetchEventsByDateRange } from '../../videprinter/storage/mongo.ts'
+import { excludeShootoutGoals } from '../../videprinter/aggregation/exclude-shootout-goals.ts'
 
 function parseDate (value: unknown): Date | null {
   if (typeof value !== 'string' || !value) { return null }
@@ -34,17 +35,17 @@ const route: ServerRoute = {
           const ts = new Date(e.utcTimestamp)
           return ts >= fromDate && ts <= toDate
         })
-      return { events: events.slice(0, limit) }
+      return { events: excludeShootoutGoals(events).slice(0, limit) }
     }
 
     if (mongoCfg.enabled) {
       const events = await fetchRecentEvents(limit)
       if (Array.isArray(events) && events.length > 0) {
-        return { events }
+        return { events: excludeShootoutGoals(events) }
       }
-      return { events: eventsStore.list({ limit, order: 'desc' }) }
+      return { events: excludeShootoutGoals(eventsStore.list({ limit, order: 'desc' })) }
     }
-    return { events: eventsStore.list({ limit, order: 'desc' }) }
+    return { events: excludeShootoutGoals(eventsStore.list({ limit, order: 'desc' })) }
   },
 }
 

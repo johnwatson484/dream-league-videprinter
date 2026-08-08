@@ -3,6 +3,7 @@ import config from '../../config.ts'
 import parentLogger from '../../logger.ts'
 import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.ts'
 import { batchCheckEventExists } from '../storage/mongo.ts'
+import { excludeShootoutGoals } from '../aggregation/exclude-shootout-goals.ts'
 import crypto from 'node:crypto'
 
 const logger = parentLogger.child({ component: 'live-score' })
@@ -331,7 +332,7 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<G
     logger.debug('skipping events fetch for match id=%s (no goals in score)', match.id)
   }
 
-  const normalizedGoals = events.map(g => normalizeGoal(match, g))
+  const normalizedGoals = excludeShootoutGoals(events.map(g => normalizeGoal(match, g)))
 
   const goalIds = normalizedGoals.map(g => g.id)
   const existingIds = await batchCheckEventExists(goalIds)
@@ -460,6 +461,7 @@ function inferSideFromTeamName (e: RawEvent, match: LiveMatch): string | null {
   return null
 }
 
+// Intentionally excludes PENALTY_SHOOTOUT_GOAL - shootout kicks don't count towards the league.
 function isLikelyGoalEvent (e: RawEvent): boolean {
   const eventType = (e?.event || '').toString().toUpperCase()
   return ['GOAL', 'GOAL_PENALTY', 'OWN_GOAL'].includes(eventType)
