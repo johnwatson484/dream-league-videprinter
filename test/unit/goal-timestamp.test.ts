@@ -5,7 +5,7 @@ vi.mock('../../src/videprinter/state/request-counter.ts', () => ({
   noteExternalRequest: vi.fn().mockResolvedValue(undefined)
 }))
 vi.mock('../../src/videprinter/storage/mongo.ts', () => ({
-  batchCheckEventExists: vi.fn().mockResolvedValue(new Set())
+  fetchActiveEventsForFixture: vi.fn().mockResolvedValue([]),
 }))
 
 const { fetchLiveScoreData } = await import('../../src/videprinter/fetchers/live-score.ts')

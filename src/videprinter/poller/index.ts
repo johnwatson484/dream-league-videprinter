@@ -2,11 +2,12 @@ import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 import logger from '../../logger.ts'
 import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
-import { fetchLiveScoreData } from '../fetchers/live-score.ts'
+import { fetchLiveScoreData, type GoalRetraction } from '../fetchers/live-score.ts'
 import { videprinterBroadcaster } from '../state/broadcaster.ts'
 import { eventsStore } from '../state/events-store.ts'
 import { eventCache } from '../state/event-cache.ts'
-import { saveEvents } from '../storage/mongo.ts'
+import { contentSignatureFor } from '../aggregation/event-signature.ts'
+import { saveEvents, retractEvents } from '../storage/mongo.ts'
 import { saveMatches } from '../storage/match-store.ts'
 import { remainingRequestsToday } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
@@ -35,35 +36,63 @@ function hourIn (timezone: string, now: Date): number {
   }
 }
 
+async function processGoals (goals: GoalEvent[]): Promise<GoalEvent[]> {
+  const processed: GoalEvent[] = []
+  for (const goal of goals) {
+    // eventCache is the single source of truth for new/corrected/unchanged, for every
+    // provider: Mongo/eventsStore dedupe on read, but both are optional, so this guards
+    // broadcasts in-process too.
+    const signature = contentSignatureFor(goal)
+    const priorSignature = eventCache.get(goal.id)
+    if (priorSignature === signature) { continue }
+    const isCorrection = priorSignature !== undefined
+    eventCache.set(goal.id, signature)
+
+    const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
+
+    videprinterBroadcaster.emit('goal', isCorrection ? { ...enhancedGoal, correction: true } : enhancedGoal)
+    if (isCorrection) {
+      eventsStore.update(enhancedGoal)
+    } else {
+      eventsStore.add(enhancedGoal)
+    }
+    processed.push(enhancedGoal)
+  }
+  return processed
+}
+
+async function processRetractions (retractions: GoalRetraction[]): Promise<void> {
+  if (!retractions.length) { return }
+  for (const { id, fixtureId } of retractions) {
+    eventCache.delete(id)
+    eventsStore.retract(id)
+    videprinterBroadcaster.emit('goal-retracted', { id, fixtureId })
+  }
+  await retractEvents(retractions.map(r => r.id))
+}
+
 export async function runPollCycle (): Promise<number> {
   const { provider } = config.get('dataSource')
   let goals: GoalEvent[] = []
+  let retractions: GoalRetraction[] = []
   if (provider === 'mock') {
     goals = await fetchMockGoals()
   } else if (provider === 'live-score') {
     const result = await fetchLiveScoreData()
     goals = result.goals
+    retractions = result.retractions
     if (result.matches.length > 0) {
       await saveMatches(result.matches)
     }
   }
 
-  const enhancedGoals: GoalEvent[] = []
-  for (const goal of goals) {
-    // Mongo dedupes on read, but it is optional, so guard broadcasts in process too.
-    if (eventCache.has(goal.id)) { continue }
-    eventCache.add(goal.id)
-
-    const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
-
-    videprinterBroadcaster.emit('goal', enhancedGoal)
-    eventsStore.add(enhancedGoal)
-    enhancedGoals.push(enhancedGoal)
-  }
+  const enhancedGoals = await processGoals(goals)
 
   if (enhancedGoals.length > 0) {
     await saveEvents(enhancedGoals)
   }
+
+  await processRetractions(retractions)
 
   return enhancedGoals.length
 }
