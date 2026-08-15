@@ -11,6 +11,9 @@ export interface GoalEvent {
   scoreAfterEvent: { home: number | null; away: number | null }
   phase: string
   source: string
+  // Set once the provider's snapshot no longer includes this goal (e.g. disallowed after review).
+  retracted?: boolean
+  retractedAt?: Date
   potentialGoalFor?: {
     managerId: number
     manager: string

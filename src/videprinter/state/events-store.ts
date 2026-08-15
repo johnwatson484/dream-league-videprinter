@@ -20,13 +20,14 @@ class EventsStore {
 
   list (options: ListOptions = DEFAULT_LIST_OPTIONS): GoalEvent[] {
     const { limit = 100, order = 'desc' } = options
-    const slice = this.events.slice(-limit)
+    const active = this.events.filter(event => !event.retracted)
+    const slice = active.slice(-limit)
     if (order === 'desc') { return slice.slice().reverse() }
     return slice
   }
 
   all (): GoalEvent[] {
-    return this.events.slice()
+    return this.events.filter(event => !event.retracted)
   }
 
   update (event: GoalEvent): void {
@@ -34,6 +35,18 @@ class EventsStore {
     if (index !== -1) {
       this.events[index] = event
     }
+  }
+
+  // Mongo-disabled equivalent of storage/mongo.ts retractEvents: soft-delete, kept for audit.
+  retract (id: string): void {
+    const index = this.events.findIndex(existing => existing.id === id)
+    if (index !== -1) {
+      this.events[index] = { ...this.events[index]!, retracted: true, retractedAt: new Date() }
+    }
+  }
+
+  clear (): void {
+    this.events = []
   }
 }
 

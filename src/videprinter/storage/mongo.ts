@@ -21,6 +21,7 @@ export async function initMongo (logger: Logger = defaultLogger): Promise<boolea
   const db = client.db(mongoCfg.dbName)
   collection = db.collection<GoalEvent>(mongoCfg.collection)
   await collection.createIndex({ id: 1 }, { unique: true })
+  await collection.createIndex({ fixtureId: 1 })
   await collection.createIndex({ utcTimestamp: -1 })
   if (await collection.indexExists('utcTimestamp_1')) {
     await collection.dropIndex('utcTimestamp_1')
@@ -34,13 +35,14 @@ export async function initMongo (logger: Logger = defaultLogger): Promise<boolea
 
 export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
   if (!collection || !events.length) { return }
-  // Enrichment can improve between polls, so let it overwrite while the event itself stays immutable.
-  const ops = events.map(({ potentialGoalFor, potentialConcedingFor, ...event }) => ({
+  // Only the identity fields are immutable; everything else can be corrected by the provider
+  // between polls, so it is always overwritten rather than set once on insert.
+  const ops = events.map(({ id, fixtureId, competition, source, potentialGoalFor, potentialConcedingFor, ...mutable }) => ({
     updateOne: {
-      filter: { id: event.id },
+      filter: { id },
       update: {
-        $setOnInsert: event,
-        $set: { potentialGoalFor: potentialGoalFor ?? null, potentialConcedingFor: potentialConcedingFor ?? null },
+        $setOnInsert: { id, fixtureId, competition, source },
+        $set: { ...mutable, potentialGoalFor: potentialGoalFor ?? null, potentialConcedingFor: potentialConcedingFor ?? null },
       },
       upsert: true,
     },
@@ -52,9 +54,22 @@ export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
   }
 }
 
+// Soft-delete: keeps the doc (and its history) around for audit, but hidden from every read below.
+export async function retractEvents (eventIds: string[] = []): Promise<void> {
+  if (!collection || !eventIds.length) { return }
+  try {
+    await collection.updateMany(
+      { id: { $in: eventIds } } as any,
+      { $set: { retracted: true, retractedAt: new Date() } }
+    )
+  } catch (err) {
+    defaultLogger.error('[mongo] retractEvents error: %s', (err as Error).message)
+  }
+}
+
 export async function fetchRecentEvents (limit = 100): Promise<GoalEvent[]> {
   if (!collection) { return [] }
-  const docs = await collection.find({}, { projection: { _id: 0 } })
+  const docs = await collection.find({ retracted: { $ne: true } } as any, { projection: { _id: 0 } })
     .sort({ utcTimestamp: -1 })
     .limit(limit)
     .toArray()
@@ -63,7 +78,7 @@ export async function fetchRecentEvents (limit = 100): Promise<GoalEvent[]> {
 
 export async function fetchAllEvents (): Promise<GoalEvent[]> {
   if (!collection) { return [] }
-  const docs = await collection.find({}, { projection: { _id: 0 } })
+  const docs = await collection.find({ retracted: { $ne: true } } as any, { projection: { _id: 0 } })
     .sort({ utcTimestamp: -1 })
     .toArray()
   return docs as unknown as GoalEvent[]
@@ -72,10 +87,26 @@ export async function fetchAllEvents (): Promise<GoalEvent[]> {
 export async function fetchEventsByDateRange (from: Date, to: Date): Promise<GoalEvent[]> {
   if (!collection) { return [] }
   const docs = await collection.find(
-    { utcTimestamp: { $gte: from, $lte: to } } as any,
+    { utcTimestamp: { $gte: from, $lte: to }, retracted: { $ne: true } } as any,
     { projection: { _id: 0 } }
   ).sort({ utcTimestamp: -1 }).toArray()
   return docs as unknown as GoalEvent[]
+}
+
+// All still-active (non-retracted) goals recorded for a fixture, used to spot corrections
+// (same id, changed content) and retractions (an id that no longer appears in the live snapshot).
+export async function fetchActiveEventsForFixture (fixtureId: string): Promise<GoalEvent[]> {
+  if (!collection) { return [] }
+  try {
+    const docs = await collection.find(
+      { fixtureId, retracted: { $ne: true } } as any,
+      { projection: { _id: 0 } }
+    ).toArray()
+    return docs as unknown as GoalEvent[]
+  } catch (err) {
+    defaultLogger.error('[mongo] fetchActiveEventsForFixture error: %s', (err as Error).message)
+    return []
+  }
 }
 
 export async function eventExists (eventId: string): Promise<boolean> {
@@ -86,20 +117,6 @@ export async function eventExists (eventId: string): Promise<boolean> {
   } catch (err) {
     defaultLogger.error('[mongo] eventExists error: %s', (err as Error).message)
     return false
-  }
-}
-
-export async function batchCheckEventExists (eventIds: string[] = []): Promise<Set<string>> {
-  if (!collection || !eventIds.length) { return new Set() }
-  try {
-    const existingDocs = await collection.find(
-      { id: { $in: eventIds } } as any,
-      { projection: { id: 1, _id: 0 } }
-    ).toArray()
-    return new Set(existingDocs.map(doc => (doc as unknown as { id: string }).id))
-  } catch (err) {
-    defaultLogger.error('[mongo] batchCheckEventExists error: %s', (err as Error).message)
-    return new Set()
   }
 }
 

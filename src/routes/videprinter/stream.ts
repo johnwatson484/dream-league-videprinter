@@ -45,11 +45,14 @@ const route: ServerRoute = {
     stream.write(': connected\n\n')
     writeEvent(stream, 'connected', { type: 'init', ts: new Date().toISOString() })
     const onGoal = (event: GoalEvent): void => { writeEvent(stream, 'goal', event) }
+    const onGoalRetracted = (payload: { id: string; fixtureId: string }): void => { writeEvent(stream, 'goal-retracted', payload) }
     const onHeartbeat = (): void => { writeEvent(stream, 'heartbeat', { ts: new Date().toISOString() }) }
     videprinterBroadcaster.on('goal', onGoal)
+    videprinterBroadcaster.on('goal-retracted', onGoalRetracted)
     videprinterBroadcaster.on('heartbeat', onHeartbeat)
     request.raw.req.on('close', () => {
       videprinterBroadcaster.off('goal', onGoal)
+      videprinterBroadcaster.off('goal-retracted', onGoalRetracted)
       videprinterBroadcaster.off('heartbeat', onHeartbeat)
       request.logger?.info('[videprinter] SSE client disconnected')
       stream.end()

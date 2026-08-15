@@ -1,30 +1,31 @@
+// Tracks the last-broadcast content signature per goal id (bounded, oldest evicted first).
+// Mongo/eventsStore dedupe on read, but both are optional/in-memory-bounded, so this guards
+// broadcasts in-process too: it is what lets the poller tell new / corrected / unchanged apart.
 class EventCache {
   max: number
-  ids: Set<string>
-  queue: string[]
+  signatures: Map<string, string>
 
   constructor (max = 1000) {
     this.max = max
-    this.ids = new Set()
-    this.queue = []
+    this.signatures = new Map()
   }
 
-  has (id: string): boolean { return this.ids.has(id) }
+  has (id: string): boolean { return this.signatures.has(id) }
 
-  add (id: string): void {
-    if (this.ids.has(id)) { return }
-    this.ids.add(id)
-    this.queue.push(id)
-    if (this.queue.length > this.max) {
-      const oldest = this.queue.shift()
-      if (oldest) { this.ids.delete(oldest) }
+  get (id: string): string | undefined { return this.signatures.get(id) }
+
+  set (id: string, signature: string): void {
+    this.signatures.delete(id)
+    this.signatures.set(id, signature)
+    if (this.signatures.size > this.max) {
+      const oldest = this.signatures.keys().next().value
+      if (oldest !== undefined) { this.signatures.delete(oldest) }
     }
   }
 
-  clear (): void {
-    this.ids.clear()
-    this.queue = []
-  }
+  delete (id: string): void { this.signatures.delete(id) }
+
+  clear (): void { this.signatures.clear() }
 }
 
 export const eventCache = new EventCache()
