@@ -105,4 +105,16 @@ describe('poll cycle: corrections and retractions', () => {
 
     expect(mockSaveMatches).toHaveBeenCalledWith([{ fixtureId: '1' }])
   })
+
+  test('trusts the fetcher-supplied correctedIds over the in-memory cache after a restart', async () => {
+    const correctedGoal = goal({ scorer: { name: 'Smyth', normalizedName: 'smyth' } })
+    // Simulates a process restart: eventCache is empty, but the fetcher (backed by Mongo) still
+    // knows this id was previously seen with different content.
+    mockFetchLiveScoreData.mockResolvedValueOnce({ goals: [correctedGoal], matches: [], retractions: [], correctedIds: new Set([correctedGoal.id]) })
+
+    await runPollCycle()
+
+    expect(goalBroadcasts).toHaveLength(1)
+    expect((goalBroadcasts[0] as GoalEvent & { correction?: boolean }).correction).toBe(true)
+  })
 })

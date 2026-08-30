@@ -12,6 +12,7 @@
     "dev": "NODE_ENV=development node --env-file-if-exists=.env --watch --watch-path=./src src/index.ts",
     "dev:debug": "NODE_ENV=development node --env-file-if-exists=.env --watch --watch-path=./src --inspect src/index.ts",
     "local": "npm run services:up && npm run dev",
+    "probe:live-score": "node --env-file-if-exists=.env scripts/probe-live-score.ts",
     "services:up": "docker compose up -d",
     "services:down": "docker compose down",
     "docker:build": "docker compose --profile app build",

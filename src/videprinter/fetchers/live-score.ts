@@ -18,6 +18,9 @@ export interface LiveScorePollResult {
   goals: GoalEvent[]
   matches: MatchRecord[]
   retractions: GoalRetraction[]
+  // Ids of goals in `goals` that are a correction to a previously seen goal (backed by Mongo, so
+  // this survives a process restart, unlike the poller's in-memory eventCache).
+  correctedIds: Set<string>
 }
 
 interface RawGoal {
@@ -64,18 +67,20 @@ interface RawEvent {
   min?: string | number
   sort?: string | number
   scorer?: string
-  player?: string
+  player?: string | { id?: string | number; name?: string }
   player_name?: string
   name?: string
   assist?: string
   assist_name?: string
-  info?: string
+  info?: string | { id?: string | number; name?: string }
   score?: string
   home_away?: string
   side?: string
   team?: string
   team_name?: string
   club?: string
+  is_home?: boolean
+  is_away?: boolean
 }
 
 interface MappedGoal {
@@ -159,17 +164,19 @@ function getTeamNames (match: LiveMatch): { home: string | null; away: string | 
   }
 }
 
+// Never falls back to the scorer's name: a "team name" of e.g. "Fletcher, Ashley" would
+// leak into sideFor's unknown bucket and make the scorer part of the goal's identity.
 function inferScoringTeam (match: LiveMatch, homeScore: number | null, awayScore: number | null, rawGoal: NormalizeInput): string | null {
   const names = getTeamNames(match)
   if (rawGoal?.home_away === 'h') { return names.home }
   if (rawGoal?.home_away === 'a') { return names.away }
-  if (homeScore == null || awayScore == null) { return rawGoal.scorer || null }
+  if (homeScore == null || awayScore == null) { return null }
   if (homeScore + awayScore === 0) { return null }
   if (homeScore > awayScore) { return names.home }
   if (awayScore > homeScore) { return names.away }
   if (rawGoal.scorer?.includes(names.home || '')) { return names.home }
   if (rawGoal.scorer?.includes(names.away || '')) { return names.away }
-  return rawGoal.scorer || null
+  return null
 }
 
 const HOUR_MS = 60 * 60 * 1000
@@ -198,7 +205,9 @@ function goalTimestamp (match: LiveMatch, minute: number | null): Date {
   return new Date(kickoff.getTime() + minute * 60 * 1000)
 }
 
-function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): Omit<GoalEvent, 'id'> {
+// providerEventId is carried alongside the GoalEvent fields (not part of GoalEvent itself)
+// so buildGoalEvents can prefer it for identity when the provider supplies one.
+function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): Omit<GoalEvent, 'id'> & { providerEventId: string | null } {
   const { home: homeScore, away: awayScore } = parseScore(rawGoal.score)
   const scoringTeamGuess = inferScoringTeam(match, homeScore, awayScore, rawGoal)
   const names = getTeamNames(match)
@@ -216,6 +225,7 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): Omit<GoalEve
     scoreAfterEvent: homeScore != null && awayScore != null ? { home: homeScore, away: awayScore } : { home: null, away: null },
     phase: match.status || 'LIVE',
     source: 'live-score',
+    providerEventId: rawGoal.eventId || null,
   }
 }
 
@@ -240,10 +250,12 @@ function sideFor (scoringTeamName: string, names: { home: string | null; away: s
   return `unknown:${scoringTeamName}`
 }
 
-// Identity is `match + side + Nth goal for that side`, not scorer/minute/score text, so a
-// provider correction (renamed scorer, confirmed stoppage time) updates the same goal instead
-// of minting a new one. Raw entries that are byte-for-byte repeats within this snapshot are
-// collapsed here too, before they can consume an ordinal slot as a phantom extra goal.
+// Identity prefers the provider's own event id, which is stable across a scorer/minute
+// correction. Only when the provider doesn't supply one (e.g. goals embedded on the match
+// snapshot rather than fetched from the events endpoint) do we fall back to
+// `match + side + Nth goal for that side`. Raw entries that are byte-for-byte repeats within
+// this snapshot are collapsed here too, before they can consume an ordinal slot as a phantom
+// extra goal.
 function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEvent[] {
   const names = getTeamNames(match)
   const ordinals = new Map<string, number>()
@@ -251,7 +263,7 @@ function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEve
   const result: GoalEvent[] = []
 
   for (const rawGoal of orderByTime(rawGoals)) {
-    const partial = normalizeGoal(match, rawGoal)
+    const { providerEventId, ...partial } = normalizeGoal(match, rawGoal)
     const side = sideFor(partial.scoringTeam.name, names)
     const signature = `${side}|${contentSignatureFor(partial)}`
     if (seenSignatures.has(signature)) { continue }
@@ -259,7 +271,8 @@ function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEve
 
     const ordinal = (ordinals.get(side) ?? 0) + 1
     ordinals.set(side, ordinal)
-    result.push({ ...partial, id: `${match.id}-${side}-${ordinal}` })
+    const id = providerEventId ? `${match.id}-e${providerEventId}` : `${match.id}-${side}-${ordinal}`
+    result.push({ ...partial, id })
   }
 
   return result
@@ -275,18 +288,18 @@ export async function fetchLiveScoreData (fetcher: typeof fetch = fetch): Promis
   logger.debug('fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host)
   if (!ds.liveScore.key || !ds.liveScore.secret) {
     logger.debug('skip: missing API credentials')
-    return { goals: [], matches: [], retractions: [] }
+    return { goals: [], matches: [], retractions: [], correctedIds: new Set() }
   }
   if (!(await canMakeExternalRequest())) {
     logger.debug('skip: daily request cap reached')
-    return { goals: [], matches: [], retractions: [] }
+    return { goals: [], matches: [], retractions: [], correctedIds: new Set() }
   }
   await noteExternalRequest()
   logger.debug('requesting %s', maskSecret(url))
   const matches = await getLiveMatches(fetcher, url)
-  if (!matches.length) { return { goals: [], matches: [], retractions: [] } }
+  if (!matches.length) { return { goals: [], matches: [], retractions: [], correctedIds: new Set() } }
   const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  return await collectGoalsAndMatches(matches, liveCreds)
+  return await collectGoalsAndMatches(matches, liveCreds, fetcher)
 }
 
 function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataSource'>> } {
@@ -318,7 +331,7 @@ async function getLiveMatches (fetcher: typeof fetch, url: string): Promise<Live
   }
 }
 
-async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCreds): Promise<LiveScorePollResult> {
+async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<LiveScorePollResult> {
   const compIds = COMP_ID_SET()
   logger.debug('competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)')
 
@@ -346,20 +359,22 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
 
   const goals: GoalEvent[] = []
   const retractions: GoalRetraction[] = []
+  const correctedIds = new Set<string>()
   for (const m of matchesToProcess) {
     const compId = m?.competition?.id ?? m.competition_id
     const compName = m?.competition?.name ?? m.competition_name
     logger.debug('processing match id=%s comp=%s(%s)', m.id, compName, compId)
-    const result = await goalsForMatch(m, liveCreds)
+    const result = await goalsForMatch(m, liveCreds, fetcher)
     goals.push(...result.goals)
     retractions.push(...result.retractions)
+    for (const id of result.correctedIds) { correctedIds.add(id) }
   }
 
   // Oldest first: consumers prepend each goal to the feed, so the newest ends up on top.
   goals.sort((a, b) => new Date(a.utcTimestamp).getTime() - new Date(b.utcTimestamp).getTime())
 
   logger.debug('goals emitted=%d retractions=%d matches=%d (oldest first)', goals.length, retractions.length, matchRecords.length)
-  return { goals, matches: matchRecords, retractions }
+  return { goals, matches: matchRecords, retractions, correctedIds }
 }
 
 function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
@@ -377,12 +392,12 @@ async function existingEventsForFixture (fixtureId: string): Promise<Map<string,
   return new Map(existing.map(e => [e.id, e]))
 }
 
-async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{ goals: GoalEvent[]; retractions: GoalRetraction[] }> {
+async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<{ goals: GoalEvent[]; retractions: GoalRetraction[]; correctedIds: Set<string> }> {
   let events: NormalizeInput[] = extractGoalEvents(match)
   if (!events.length && hasGoalsInMatch(match) && match?.urls?.events) {
     logger.debug('fetching events for match id=%s (score indicates goals present)', match.id)
     try {
-      events = await fetchMatchEvents(match, liveCreds)
+      events = await fetchMatchEvents(match, liveCreds, fetcher)
     } catch (err) {
       logger.debug('events fetch failed for match %s: %s', match.id, (err as Error)?.message || err)
       events = []
@@ -398,6 +413,7 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{
   const existing = await existingEventsForFixture(fixtureId)
 
   const goals: GoalEvent[] = []
+  const correctedIds = new Set<string>()
   for (const goal of candidates) {
     const priorEvent = existing.get(goal.id)
     if (!priorEvent) {
@@ -407,6 +423,7 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{
     }
     if (contentSignatureFor(priorEvent) !== contentSignatureFor(goal)) {
       logger.debug('corrected goal: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
+      correctedIds.add(goal.id)
       goals.push(goal)
     } else {
       logger.debug('goal unchanged since last poll: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
@@ -423,7 +440,7 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{
     logger.debug('goals retracted for fixture id=%s ids=%s', fixtureId, retractions.map(r => r.id).join(','))
   }
 
-  return { goals, retractions }
+  return { goals, retractions, correctedIds }
 }
 
 function appendCredsToUrl (url: string, key: string, secret: string): string {
@@ -475,6 +492,8 @@ function orderEvents (events: RawEvent[]): RawEvent[] {
 }
 
 function determineSide (e: RawEvent): string | null {
+  if (e?.is_home === true) { return 'h' }
+  if (e?.is_away === true) { return 'a' }
   const sideRaw = (e?.home_away || e?.side || e?.team || '').toString().toLowerCase()
   if (sideRaw.startsWith('h')) { return 'h' }
   if (sideRaw.startsWith('a')) { return 'a' }
@@ -536,8 +555,14 @@ function isLikelyGoalEvent (e: RawEvent): boolean {
   return ['GOAL', 'GOAL_PENALTY', 'OWN_GOAL'].includes(eventType)
 }
 
+// player/info can be a plain string (legacy shape) or a `{ id, name }` object (documented shape).
+function personName (value: string | { name?: string } | undefined): string | null {
+  if (!value) { return null }
+  return typeof value === 'string' ? value : (value.name || null)
+}
+
 function getGoalScorer (e: RawEvent): string {
-  const baseScorer = e?.scorer || e?.player || e?.player_name || e?.name || 'Unknown'
+  const baseScorer = e?.scorer || personName(e?.player) || e?.player_name || e?.name || 'Unknown'
   const eventType = (e?.event || '').toString().toUpperCase()
 
   if (eventType === 'OWN_GOAL') {
@@ -548,5 +573,5 @@ function getGoalScorer (e: RawEvent): string {
 }
 
 function getAssist (e: RawEvent): string | null {
-  return e?.assist || e?.assist_name || e?.info || null
+  return e?.assist || e?.assist_name || personName(e?.info) || null
 }

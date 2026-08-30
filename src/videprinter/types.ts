@@ -38,6 +38,7 @@ export interface DreamLeaguePlayer {
   name: string
   position: string
   team: string
+  teamAlias?: string
   managerId: number
   manager: string
   substitute: boolean
@@ -46,6 +47,7 @@ export interface DreamLeaguePlayer {
 export interface DreamLeagueGoalkeeper {
   teamId: number
   name: string
+  alias?: string
   managerId: number
   manager: string
   substitute: boolean
@@ -57,6 +59,7 @@ export interface NormalizedPlayer extends DreamLeaguePlayer {
 
 export interface NormalizedTeam extends DreamLeagueGoalkeeper {
   normalizedName: string
+  normalizedAlias: string
 }
 
 export interface PlayerMatch {

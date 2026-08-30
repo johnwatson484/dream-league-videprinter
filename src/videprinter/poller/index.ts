@@ -36,16 +36,16 @@ function hourIn (timezone: string, now: Date): number {
   }
 }
 
-async function processGoals (goals: GoalEvent[]): Promise<GoalEvent[]> {
+// null when the provider can't say (e.g. mock), in which case we fall back to the in-memory
+// eventCache - otherwise correctedIds is authoritative since it is backed by Mongo/eventsStore
+// and survives a process restart, unlike eventCache.
+async function processGoals (goals: GoalEvent[], correctedIds: ReadonlySet<string> | null = null): Promise<GoalEvent[]> {
   const processed: GoalEvent[] = []
   for (const goal of goals) {
-    // eventCache is the single source of truth for new/corrected/unchanged, for every
-    // provider: Mongo/eventsStore dedupe on read, but both are optional, so this guards
-    // broadcasts in-process too.
     const signature = contentSignatureFor(goal)
     const priorSignature = eventCache.get(goal.id)
     if (priorSignature === signature) { continue }
-    const isCorrection = priorSignature !== undefined
+    const isCorrection = correctedIds ? correctedIds.has(goal.id) : priorSignature !== undefined
     eventCache.set(goal.id, signature)
 
     const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
@@ -75,18 +75,20 @@ export async function runPollCycle (): Promise<number> {
   const { provider } = config.get('dataSource')
   let goals: GoalEvent[] = []
   let retractions: GoalRetraction[] = []
+  let correctedIds: Set<string> | null = null
   if (provider === 'mock') {
     goals = await fetchMockGoals()
   } else if (provider === 'live-score') {
     const result = await fetchLiveScoreData()
     goals = result.goals
     retractions = result.retractions
+    correctedIds = result.correctedIds
     if (result.matches.length > 0) {
       await saveMatches(result.matches)
     }
   }
 
-  const enhancedGoals = await processGoals(goals)
+  const enhancedGoals = await processGoals(goals, correctedIds)
 
   if (enhancedGoals.length > 0) {
     await saveEvents(enhancedGoals)
