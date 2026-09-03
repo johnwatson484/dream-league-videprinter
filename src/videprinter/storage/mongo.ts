@@ -37,12 +37,15 @@ export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
   if (!collection || !events.length) { return }
   // Only the identity fields are immutable; everything else can be corrected by the provider
   // between polls, so it is always overwritten rather than set once on insert.
+  // retracted/retractedAt are cleared here too: every event reaching this point was just
+  // reconfirmed present by the fetcher, so any earlier (possibly mistaken) retraction no
+  // longer applies.
   const ops = events.map(({ id, fixtureId, competition, source, potentialGoalFor, potentialConcedingFor, ...mutable }) => ({
     updateOne: {
       filter: { id },
       update: {
         $setOnInsert: { id, fixtureId, competition, source },
-        $set: { ...mutable, potentialGoalFor: potentialGoalFor ?? null, potentialConcedingFor: potentialConcedingFor ?? null },
+        $set: { ...mutable, potentialGoalFor: potentialGoalFor ?? null, potentialConcedingFor: potentialConcedingFor ?? null, retracted: false, retractedAt: null },
       },
       upsert: true,
     },
