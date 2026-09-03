@@ -153,7 +153,7 @@ function totalGoalsFromScore (match: LiveMatch): number | null {
     if (home == null || away == null) { continue }
     const total = home + away
     if (total > 0) { return total }
-    if (fallback == null) { fallback = total }
+    fallback ??= total
   }
   return fallback
 }
