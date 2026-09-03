@@ -134,16 +134,28 @@ function extractGoalEvents (match: LiveMatch): RawGoal[] {
 }
 
 function hasGoalsInMatch (match: LiveMatch): boolean {
+  const total = totalGoalsFromScore(match)
+  return total != null && total > 0
+}
+
+// The first field with a nonzero total wins, matching the old hasGoalsInMatch precedence -
+// used to sanity-check that a poll's goal events aren't missing/incomplete before trusting
+// it enough to retract anything.
+function totalGoalsFromScore (match: LiveMatch): number | null {
   const s = match?.scores || {}
   const candidates = [
     s.score, s.ft_score, s.ht_score,
     match?.score, match?.ft_score, match?.ht_score
   ]
+  let fallback: number | null = null
   for (const str of candidates) {
     const { home, away } = parseScore(str)
-    if (home != null && away != null && (home + away) > 0) { return true }
+    if (home == null || away == null) { continue }
+    const total = home + away
+    if (total > 0) { return total }
+    if (fallback == null) { fallback = total }
   }
-  return false
+  return fallback
 }
 
 function parseScore (scoreStr: string | undefined | null): { home: number | null; away: number | null } {
@@ -286,7 +298,7 @@ export async function fetchLiveScoreData (fetcher: typeof fetch = fetch): Promis
   const matches = await getLiveMatches(fetcher, url)
   if (!matches.length) { return { goals: [], matches: [], retractions: [] } }
   const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  return await collectGoalsAndMatches(matches, liveCreds)
+  return await collectGoalsAndMatches(matches, liveCreds, fetcher)
 }
 
 function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataSource'>> } {
@@ -318,7 +330,7 @@ async function getLiveMatches (fetcher: typeof fetch, url: string): Promise<Live
   }
 }
 
-async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCreds): Promise<LiveScorePollResult> {
+async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCreds, fetcher: typeof fetch): Promise<LiveScorePollResult> {
   const compIds = COMP_ID_SET()
   logger.debug('competition filter: %s', compIds.size ? Array.from(compIds).join(',') : 'none (include all)')
 
@@ -350,7 +362,7 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
     const compId = m?.competition?.id ?? m.competition_id
     const compName = m?.competition?.name ?? m.competition_name
     logger.debug('processing match id=%s comp=%s(%s)', m.id, compName, compId)
-    const result = await goalsForMatch(m, liveCreds)
+    const result = await goalsForMatch(m, liveCreds, fetcher)
     goals.push(...result.goals)
     retractions.push(...result.retractions)
   }
@@ -377,15 +389,17 @@ async function existingEventsForFixture (fixtureId: string): Promise<Map<string,
   return new Map(existing.map(e => [e.id, e]))
 }
 
-async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{ goals: GoalEvent[]; retractions: GoalRetraction[] }> {
+export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<{ goals: GoalEvent[]; retractions: GoalRetraction[] }> {
   let events: NormalizeInput[] = extractGoalEvents(match)
+  let eventsFetchFailed = false
   if (!events.length && hasGoalsInMatch(match) && match?.urls?.events) {
     logger.debug('fetching events for match id=%s (score indicates goals present)', match.id)
     try {
-      events = await fetchMatchEvents(match, liveCreds)
+      events = await fetchMatchEvents(match, liveCreds, fetcher)
     } catch (err) {
       logger.debug('events fetch failed for match %s: %s', match.id, (err as Error)?.message || err)
       events = []
+      eventsFetchFailed = true
     }
   } else if (events.length) {
     logger.debug('using embedded events for match id=%s count=%d', match.id, events.length)
@@ -413,8 +427,34 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{
     }
   }
 
-  // Only while the match is still live in this snapshot - a match dropping out of the feed
-  // entirely (e.g. finished) must not be mistaken for every one of its goals being retracted.
+  const retractions = computeRetractions(match, candidates, existing, fixtureId, eventsFetchFailed)
+
+  return { goals, retractions }
+}
+
+// Only when we trust this poll's candidate list is complete: a failed events fetch or a
+// finished match no longer surfacing event detail leaves `candidates` empty/short for
+// reasons that have nothing to do with a goal actually being disallowed, so those cases
+// must not be mistaken for every one of a fixture's goals being retracted. The score is
+// the one signal that still holds up regardless of whether event-level detail came
+// through this poll, so it gates whether the (unchanged) id-diff below is trustworthy.
+function computeRetractions (match: LiveMatch, candidates: GoalEvent[], existing: Map<string, GoalEvent>, fixtureId: string, eventsFetchFailed: boolean): GoalRetraction[] {
+  if (eventsFetchFailed) {
+    logger.warn('skipping retraction check for fixture id=%s: events fetch failed this poll', fixtureId)
+    return []
+  }
+
+  const expectedGoals = totalGoalsFromScore(match)
+  if (expectedGoals == null) {
+    logger.warn('skipping retraction check for fixture id=%s: score unparseable', fixtureId)
+    return []
+  }
+
+  if (candidates.length < expectedGoals) {
+    logger.warn('skipping retraction check for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found', fixtureId, expectedGoals, candidates.length)
+    return []
+  }
+
   const candidateIds = new Set(candidates.map(g => g.id))
   const retractions: GoalRetraction[] = [...existing.keys()]
     .filter(id => !candidateIds.has(id))
@@ -422,8 +462,7 @@ async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds): Promise<{
   if (retractions.length) {
     logger.debug('goals retracted for fixture id=%s ids=%s', fixtureId, retractions.map(r => r.id).join(','))
   }
-
-  return { goals, retractions }
+  return retractions
 }
 
 function appendCredsToUrl (url: string, key: string, secret: string): string {
