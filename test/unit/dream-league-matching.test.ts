@@ -162,3 +162,52 @@ describe('FuzzyMatcher', () => {
     expect(matches[0]!.team.substitute).toBe(false)
   })
 })
+
+describe('FuzzyMatcher team matching for same-prefix clubs', () => {
+  let fuzzyMatcher: FuzzyMatcher
+
+  beforeEach(() => {
+    fuzzyMatcher = new FuzzyMatcher()
+
+    const goalkeepers: DreamLeagueGoalkeeper[] = [
+      { teamId: 45, name: 'Sheffield United', alias: 'Sheff Utd', managerId: 1, manager: 'Alice', substitute: false },
+      { teamId: 46, name: 'Sheffield Wednesday', alias: 'Sheff Wed', managerId: 2, manager: 'Bob', substitute: false },
+      { teamId: 90, name: 'Bristol City', alias: 'Bristol City', managerId: 3, manager: 'Carl', substitute: false },
+      { teamId: 91, name: 'Bristol Rovers', alias: 'Bristol Rovers', managerId: 4, manager: 'Dana', substitute: false },
+    ]
+
+    fuzzyMatcher.updateData([], goalkeepers)
+  })
+
+  test('does not confuse Sheffield United with Sheffield Wednesday', () => {
+    const unitedMatches = fuzzyMatcher.findGoalkeeperMatches('Sheffield United')
+    const wednesdayMatches = fuzzyMatcher.findGoalkeeperMatches('Sheffield Wednesday')
+
+    expect(unitedMatches).toHaveLength(1)
+    expect(unitedMatches[0]!.team.manager).toBe('Alice')
+    expect(wednesdayMatches).toHaveLength(1)
+    expect(wednesdayMatches[0]!.team.manager).toBe('Bob')
+  })
+
+  test('does not confuse Bristol City with Bristol Rovers', () => {
+    const cityMatches = fuzzyMatcher.findGoalkeeperMatches('Bristol City')
+    const roversMatches = fuzzyMatcher.findGoalkeeperMatches('Bristol Rovers')
+
+    expect(cityMatches).toHaveLength(1)
+    expect(cityMatches[0]!.team.manager).toBe('Carl')
+    expect(roversMatches).toHaveLength(1)
+    expect(roversMatches[0]!.team.manager).toBe('Dana')
+  })
+
+  test('matches on alias when the provider sends a shortened name', () => {
+    const matches = fuzzyMatcher.findGoalkeeperMatches('Sheff Utd')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0]!.team.manager).toBe('Alice')
+  })
+
+  test('isTeamMatch does not conflate Sheffield United with Sheffield Wednesday', () => {
+    expect(fuzzyMatcher.isTeamMatch('Sheffield United', 'Sheffield Wednesday')).toBe(false)
+    expect(fuzzyMatcher.isTeamMatch('Bristol City', 'Bristol Rovers')).toBe(false)
+  })
+})

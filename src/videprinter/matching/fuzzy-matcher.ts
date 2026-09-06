@@ -1,11 +1,13 @@
 import Fuse from 'fuse.js'
 import type { DreamLeaguePlayer, DreamLeagueGoalkeeper, NormalizedPlayer, NormalizedTeam, PlayerMatch, GoalkeeperMatch } from '../types.ts'
+import { normalizeTeamName as normalizeTeamNameShared, isTeamMatch as isTeamMatchShared, hasConflictingDiscriminator } from './team-name.ts'
 
 export class FuzzyMatcher {
   playerFuse: Fuse<NormalizedPlayer> | null = null
   teamFuse: Fuse<NormalizedTeam> | null = null
   players: DreamLeaguePlayer[] = []
   goalkeepers: DreamLeagueGoalkeeper[] = []
+  uniqueTeams: NormalizedTeam[] = []
 
   updateData (players: DreamLeaguePlayer[], goalkeepers: DreamLeagueGoalkeeper[]): void {
     this.players = players
@@ -27,14 +29,16 @@ export class FuzzyMatcher {
     const teamOptions = {
       includeScore: true,
       threshold: 0.3,
-      keys: ['name', 'normalizedName']
+      keys: ['name', 'alias', 'normalizedName', 'normalizedAlias']
     }
 
-    const uniqueTeams: NormalizedTeam[] = goalkeepers.reduce<NormalizedTeam[]>((acc, gk) => {
+    this.uniqueTeams = goalkeepers.reduce<NormalizedTeam[]>((acc, gk) => {
       if (!acc.some(t => t.name === gk.name)) {
         acc.push({
           name: gk.name,
-          normalizedName: this.normalizeName(gk.name),
+          ...(gk.alias ? { alias: gk.alias } : {}),
+          normalizedName: this.normalizeTeamName(gk.name),
+          normalizedAlias: this.normalizeTeamName(gk.alias || ''),
           teamId: gk.teamId,
           managerId: gk.managerId,
           manager: gk.manager,
@@ -44,9 +48,11 @@ export class FuzzyMatcher {
       return acc
     }, [])
 
-    this.teamFuse = new Fuse(uniqueTeams, teamOptions)
+    this.teamFuse = new Fuse(this.uniqueTeams, teamOptions)
   }
 
+  // Player-name normalization: strips generic club suffixes since it also gates player<->team
+  // comparisons where the discriminating word doesn't matter (e.g. matching a player to "Wigan").
   normalizeName (name: string): string {
     if (!name) { return '' }
 
@@ -57,6 +63,12 @@ export class FuzzyMatcher {
       .replace(/\b(fc|united|city|town|rovers|wanderers|athletic|county|albion)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim()
+  }
+
+  // Team-name normalization: delegates to the shared, discriminator-preserving implementation
+  // also used by cup-summary aggregation, so both stay in sync.
+  normalizeTeamName (name: string): string {
+    return normalizeTeamNameShared(name)
   }
 
   findPlayerMatches (scorerName: string, scoringTeam?: string): PlayerMatch[] {
@@ -92,13 +104,24 @@ export class FuzzyMatcher {
   }
 
   findGoalkeeperMatches (concedingTeam: string): GoalkeeperMatch[] {
-    if (!this.teamFuse || !concedingTeam) { return [] }
+    if (!concedingTeam) { return [] }
 
+    // Exact match against the canonical name or alias first - the provider is expected to send
+    // full official team names, so this alone resolves same-prefix clubs like Sheffield
+    // United/Wednesday or Bristol City/Rovers without ever reaching the fuzzy fallback.
+    const query = this.normalizeTeamName(concedingTeam)
+    const exact = this.uniqueTeams.find(t => !t.substitute && (t.normalizedName === query || (t.normalizedAlias && t.normalizedAlias === query)))
+    if (exact) {
+      return [{ team: exact, confidence: 1, matchType: 'goalkeeper' }]
+    }
+
+    if (!this.teamFuse) { return [] }
     const teamMatches = this.teamFuse.search(concedingTeam)
 
     return teamMatches
       .filter(match => {
         if (match.item.substitute) { return false }
+        if (hasConflictingDiscriminator(query, match.item.normalizedName)) { return false }
 
         return (1 - (match.score ?? 0)) > 0.7
       })
@@ -110,16 +133,7 @@ export class FuzzyMatcher {
   }
 
   isTeamMatch (team1: string, team2: string): boolean {
-    if (!team1 || !team2) { return false }
-
-    const normalized1 = this.normalizeName(team1)
-    const normalized2 = this.normalizeName(team2)
-
-    if (normalized1.length < 4 || normalized2.length < 4) {
-      return normalized1 === normalized2
-    }
-
-    return normalized1.includes(normalized2) || normalized2.includes(normalized1)
+    return isTeamMatchShared(team1, team2)
   }
 
   getSummary (): { playersLoaded: number; goalkeepersLoaded: number; uniqueManagers: number } {
