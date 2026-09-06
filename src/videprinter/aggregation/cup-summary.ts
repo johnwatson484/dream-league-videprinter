@@ -1,22 +1,5 @@
 import type { GoalEvent, MatchRecord } from '../types.ts'
-
-function normalizeTeamName (name: string): string {
-  if (!name) { return '' }
-  return name
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\b(fc|united|city|town|rovers|wanderers|athletic|county|albion)\b/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function teamsMatch (a: string, b: string): boolean {
-  const na = normalizeTeamName(a)
-  const nb = normalizeTeamName(b)
-  if (na.length < 4 || nb.length < 4) { return na === nb }
-  return na.includes(nb) || nb.includes(na)
-}
+import { normalizeTeamName, isTeamMatch } from '../matching/team-name.ts'
 
 function addMatchToFixtures (fixtureTimestamps: Map<string, { teams: Set<string>; timestamp: Date }>, match: MatchRecord): void {
   const entry = fixtureTimestamps.get(match.fixtureId) || { teams: new Set(), timestamp: match.utcTimestamp }
@@ -67,7 +50,7 @@ function findFirstFixtureForTeam (teamName: string, teamFirstFixture: Map<string
   const norm = normalizeTeamName(teamName)
   if (teamFirstFixture.has(norm)) { return teamFirstFixture.get(norm)! }
   for (const [key, fixtureId] of teamFirstFixture) {
-    if (teamsMatch(norm, key)) { return fixtureId }
+    if (isTeamMatch(norm, key)) { return fixtureId }
   }
   return null
 }
