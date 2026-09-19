@@ -11,6 +11,7 @@ vi.mock('../../src/videprinter/storage/mongo.ts', () => ({
 
 const { fetchLiveScoreData } = await import('../../src/videprinter/fetchers/live-score.ts')
 const { eventsStore } = await import('../../src/videprinter/state/events-store.ts')
+const { fixturePollMemo } = await import('../../src/videprinter/state/fixture-poll-memo.ts')
 const config = (await import('../../src/config.ts')).default
 
 interface MatchOverrides {
@@ -83,6 +84,7 @@ describe('goal retraction safety gate', () => {
       championship: 3, leagueOne: 4, leagueTwo: 5, faCup: 6, leagueCup: 7
     })
     eventsStore.clear()
+    fixturePollMemo.clear()
   })
 
   test('does not retract a goal that is reconfirmed, unchanged, this poll', async () => {
@@ -126,8 +128,25 @@ describe('goal retraction safety gate', () => {
       urls: { events: 'https://example.com/matches/1/events.json' }
     })
 
-    const { retractions } = await fetchLiveScoreData(fetcherWithEventsFailure([flakyMatch]))
+    const { goals, retractions } = await fetchLiveScoreData(fetcherWithEventsFailure([flakyMatch]))
 
+    expect(retractions).toEqual([])
+    expect(goals).toEqual([])
+  })
+
+  // Ids are positional, so the 67' goal arriving alone would be built as `1-h-1` and
+  // overwrite the 23' goal already stored under that id.
+  test('ignores a poll whose event list is shorter than the score rather than sliding a later goal onto an earlier id', async () => {
+    eventsStore.add(existingGoal({ id: '1-h-1' }))
+
+    const partialMatch = match({
+      scores: { score: '2 - 0' },
+      goals: [{ time: '67', scorer: 'Second, Sam', score: '2 - 0', home_away: 'h' }]
+    })
+
+    const { goals, retractions } = await fetchLiveScoreData(fetcherReturning([partialMatch]))
+
+    expect(goals).toEqual([])
     expect(retractions).toEqual([])
   })
 

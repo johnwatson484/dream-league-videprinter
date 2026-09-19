@@ -33,8 +33,8 @@ export async function initMongo (logger: Logger = defaultLogger): Promise<boolea
   return true
 }
 
-export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
-  if (!collection || !events.length) { return }
+export async function saveEvents (events: GoalEvent[] = []): Promise<boolean> {
+  if (!collection || !events.length) { return true }
   // Only the identity fields are immutable; everything else can be corrected by the provider
   // between polls, so it is always overwritten rather than set once on insert.
   // retracted/retractedAt are cleared here too: every event reaching this point was just
@@ -52,8 +52,10 @@ export async function saveEvents (events: GoalEvent[] = []): Promise<void> {
   }))
   try {
     await collection.bulkWrite(ops as any, { ordered: false })
+    return true
   } catch (err) {
     defaultLogger.error('[mongo] bulkWrite error: %s', (err as Error).message)
+    return false
   }
 }
 

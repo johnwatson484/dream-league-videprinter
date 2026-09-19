@@ -105,4 +105,17 @@ describe('poll cycle: corrections and retractions', () => {
 
     expect(mockSaveMatches).toHaveBeenCalledWith([{ fixtureId: '1' }])
   })
+
+  // The fetcher only offers goals that are new or changed against storage, so a goal it
+  // keeps offering is one that has not landed yet - the retry costs nothing but a rewrite.
+  test('keeps persisting a goal the fetcher still reports after a failed save, without rebroadcasting it', async () => {
+    mockSaveEvents.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    mockFetchLiveScoreData.mockResolvedValue({ goals: [goal()], matches: [], retractions: [] })
+
+    await runPollCycle()
+    await runPollCycle()
+
+    expect(mockSaveEvents).toHaveBeenCalledTimes(2)
+    expect(goalBroadcasts).toHaveLength(1)
+  })
 })

@@ -4,8 +4,10 @@ import parentLogger from '../../logger.ts'
 import { canMakeExternalRequest, noteExternalRequest } from '../state/request-counter.ts'
 import { fetchActiveEventsForFixture } from '../storage/mongo.ts'
 import { eventsStore } from '../state/events-store.ts'
+import { fixturePollMemo } from '../state/fixture-poll-memo.ts'
 import { excludeShootoutGoals } from '../aggregation/exclude-shootout-goals.ts'
 import { contentSignatureFor } from '../aggregation/event-signature.ts'
+import { fetchWithTimeout } from './fetch-with-timeout.ts'
 
 const logger = parentLogger.child({ component: 'live-score' })
 
@@ -92,6 +94,11 @@ type NormalizeInput = RawGoal | MappedGoal
 interface LiveCreds {
   key: string
   secret: string
+}
+
+interface MatchEventsResult {
+  events: MappedGoal[]
+  failed: boolean
 }
 
 const COMP_ID_SET = (): Set<number> => {
@@ -286,14 +293,13 @@ export async function fetchLiveScoreData (fetcher: typeof fetch = fetch): Promis
   const { url, ds } = buildLiveUrl()
   logger.debug('fetch start provider=%s useMock=%s keyPresent=%s host=%s', ds.provider, ds.useMock, Boolean(ds.liveScore.key), ds.liveScore.host)
   if (!ds.liveScore.key || !ds.liveScore.secret) {
-    logger.debug('skip: missing API credentials')
+    logger.warn('skip: missing API credentials')
     return { goals: [], matches: [], retractions: [] }
   }
   if (!(await canMakeExternalRequest())) {
-    logger.debug('skip: daily request cap reached')
+    logger.warn('skip: daily request cap of %d reached, no further polling until it resets', ds.dailyRequestCap)
     return { goals: [], matches: [], retractions: [] }
   }
-  await noteExternalRequest()
   logger.debug('requesting %s', maskSecret(url))
   const matches = await getLiveMatches(fetcher, url)
   if (!matches.length) { return { goals: [], matches: [], retractions: [] } }
@@ -311,22 +317,40 @@ function buildLiveUrl (): { url: string; ds: ReturnType<typeof config.get<'dataS
 function maskSecret (url: string): string { return url.replace(/secret=[^&]*/i, 'secret=***') }
 
 async function getLiveMatches (fetcher: typeof fetch, url: string): Promise<LiveMatch[]> {
-  const res = await fetcher(url)
-  logger.debug('response status=%s ok=%s', res.status, res.ok)
-  if (!res.ok) { return [] }
+  const res = await issueRequest(fetcher, url, 'live matches')
+  if (!res) { return [] }
   try {
     const json = await res.json()
     const matches = json?.data?.match
     if (!Array.isArray(matches)) {
-      logger.debug('no matches array in response')
+      logger.warn('live matches response contained no match array')
       return []
     }
     logger.debug('matches received=%d', matches.length)
     debugCompetitionIds(matches)
     return matches as LiveMatch[]
   } catch (e) {
-    logger.debug('json parse error: %s', (e as Error)?.message || e)
+    logger.warn('live matches json parse error: %s', (e as Error)?.message || e)
     return []
+  }
+}
+
+// Counted even when it fails: the provider's quota is spent the moment the request leaves,
+// and a failure that costs quota without being counted is how an overrun stays invisible.
+async function issueRequest (fetcher: typeof fetch, url: string, label: string): Promise<Response | null> {
+  try {
+    const res = await fetchWithTimeout(fetcher, url)
+    logger.debug('%s response status=%s ok=%s', label, res.status, res.ok)
+    if (!res.ok) {
+      logger.warn('%s request rejected: status=%s', label, res.status)
+      return null
+    }
+    return res
+  } catch (err) {
+    logger.warn('%s request failed: %s', label, (err as Error)?.message || err)
+    return null
+  } finally {
+    await noteExternalRequest()
   }
 }
 
@@ -390,27 +414,68 @@ async function existingEventsForFixture (fixtureId: string): Promise<Map<string,
 }
 
 export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<{ goals: GoalEvent[]; retractions: GoalRetraction[] }> {
-  let events: NormalizeInput[] = extractGoalEvents(match)
+  const fixtureId = String(match.id)
+  const existing = await existingEventsForFixture(fixtureId)
+  const embedded = extractGoalEvents(match)
+
+  let events: NormalizeInput[] = embedded
   let eventsFetchFailed = false
-  if (!events.length && hasGoalsInMatch(match) && match?.urls?.events) {
-    logger.debug('fetching events for match id=%s (score indicates goals present)', match.id)
-    try {
-      events = await fetchMatchEvents(match, liveCreds, fetcher)
-    } catch (err) {
-      logger.debug('events fetch failed for match %s: %s', match.id, (err as Error)?.message || err)
-      events = []
-      eventsFetchFailed = true
+
+  if (!embedded.length && hasGoalsInMatch(match) && match?.urls?.events) {
+    if (alreadyReconciled(match, fixtureId, existing.size)) {
+      logger.debug('skipping events fetch for match id=%s: score, status and stored goals all unchanged', match.id)
+      return { goals: [], retractions: [] }
     }
-  } else if (events.length) {
-    logger.debug('using embedded events for match id=%s count=%d', match.id, events.length)
+    logger.debug('fetching events for match id=%s (score indicates goals present)', match.id)
+    const result = await fetchMatchEvents(match, liveCreds, fetcher)
+    events = result.events
+    eventsFetchFailed = result.failed
+  } else if (embedded.length) {
+    logger.debug('using embedded events for match id=%s count=%d', match.id, embedded.length)
   } else if (!hasGoalsInMatch(match)) {
     logger.debug('skipping events fetch for match id=%s (no goals in score)', match.id)
   }
 
-  const fixtureId = String(match.id)
   const candidates = excludeShootoutGoals(buildGoalEvents(match, events))
-  const existing = await existingEventsForFixture(fixtureId)
+  const trust = assessPoll(match, candidates, fixtureId, eventsFetchFailed)
 
+  const goals = trust.emit ? changedGoals(candidates, existing) : []
+  const retractions = trust.retract ? computeRetractions(candidates, existing, fixtureId) : []
+
+  if (trust.emit && trust.retract) {
+    fixturePollMemo.record(fixtureId, totalGoalsFromScore(match) ?? 0, String(match.status || ''))
+  } else {
+    fixturePollMemo.forget(fixtureId)
+  }
+
+  return { goals, retractions }
+}
+
+const FINAL_STATUSES = new Set(['FT', 'AET', 'AP', 'FT_PEN', 'FINISHED', 'AFTER ET', 'AFTER PEN.', 'ABANDONED', 'CANCELLED', 'POSTPONED'])
+
+function isFinalStatus (status: string): boolean {
+  return FINAL_STATUSES.has(status.trim().toUpperCase())
+}
+
+// Re-fetching every scoring fixture on every cycle is what exhausts the daily request
+// budget partway through a busy Saturday. The provider can still revise a goal without the
+// score moving, so a live fixture is re-checked on a slower clock rather than never; one
+// that has finished and reconciles against its final score is never re-fetched again.
+function alreadyReconciled (match: LiveMatch, fixtureId: string, storedGoals: number): boolean {
+  const memo = fixturePollMemo.get(fixtureId)
+  if (!memo) { return false }
+
+  const expectedGoals = totalGoalsFromScore(match)
+  if (expectedGoals == null || storedGoals !== expectedGoals) { return false }
+
+  const status = String(match.status || '')
+  if (memo.scoreTotal !== expectedGoals || memo.status !== status) { return false }
+  if (isFinalStatus(status)) { return true }
+
+  return Date.now() - memo.at < config.get('dataSource').eventsRefreshMs
+}
+
+function changedGoals (candidates: GoalEvent[], existing: Map<string, GoalEvent>): GoalEvent[] {
   const goals: GoalEvent[] = []
   for (const goal of candidates) {
     const priorEvent = existing.get(goal.id)
@@ -426,35 +491,41 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
       logger.debug('goal unchanged since last poll: id=%s scorer=%s minute=%s', goal.id, goal.scorer.name, goal.minute)
     }
   }
-
-  const retractions = computeRetractions(match, candidates, existing, fixtureId, eventsFetchFailed)
-
-  return { goals, retractions }
+  return goals
 }
 
-// Only when we trust this poll's candidate list is complete: a failed events fetch or a
-// finished match no longer surfacing event detail leaves `candidates` empty/short for
-// reasons that have nothing to do with a goal actually being disallowed, so those cases
-// must not be mistaken for every one of a fixture's goals being retracted. The score is
-// the one signal that still holds up regardless of whether event-level detail came
-// through this poll, so it gates whether the (unchanged) id-diff below is trustworthy.
-function computeRetractions (match: LiveMatch, candidates: GoalEvent[], existing: Map<string, GoalEvent>, fixtureId: string, eventsFetchFailed: boolean): GoalRetraction[] {
+interface PollTrust {
+  emit: boolean
+  retract: boolean
+}
+
+// A failed events fetch or a finished match no longer surfacing event detail leaves
+// `candidates` empty or short for reasons that have nothing to do with a goal being
+// disallowed, so those cases must not be mistaken for a fixture's goals being retracted.
+// A short list is not safe to emit either: ids are positional, so the Nth goal slides onto
+// an id that already belongs to an earlier goal and overwrites it on save. An unparseable
+// score only costs us the ability to verify, so goals still stand - only retraction stops.
+function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean): PollTrust {
   if (eventsFetchFailed) {
-    logger.warn('skipping retraction check for fixture id=%s: events fetch failed this poll', fixtureId)
-    return []
+    logger.warn('ignoring poll for fixture id=%s: events fetch failed this poll', fixtureId)
+    return { emit: false, retract: false }
   }
 
   const expectedGoals = totalGoalsFromScore(match)
   if (expectedGoals == null) {
     logger.warn('skipping retraction check for fixture id=%s: score unparseable', fixtureId)
-    return []
+    return { emit: true, retract: false }
   }
 
   if (candidates.length < expectedGoals) {
-    logger.warn('skipping retraction check for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found', fixtureId, expectedGoals, candidates.length)
-    return []
+    logger.warn('ignoring poll for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found', fixtureId, expectedGoals, candidates.length)
+    return { emit: false, retract: false }
   }
 
+  return { emit: true, retract: true }
+}
+
+function computeRetractions (candidates: GoalEvent[], existing: Map<string, GoalEvent>, fixtureId: string): GoalRetraction[] {
   const candidateIds = new Set(candidates.map(g => g.id))
   const retractions: GoalRetraction[] = [...existing.keys()]
     .filter(id => !candidateIds.has(id))
@@ -477,27 +548,27 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
   return url + sep + params.join('&')
 }
 
-async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MappedGoal[]> {
+async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MatchEventsResult> {
+  if (!(await canMakeExternalRequest())) {
+    logger.warn('events fetch skipped for match id=%s: daily request cap reached', match.id)
+    return { events: [], failed: true }
+  }
+
+  const url = appendCredsToUrl(match.urls!.events!, liveCreds?.key, liveCreds?.secret)
+  logger.debug('events requesting %s', maskSecret(url))
+  const res = await issueRequest(fetcher, url, `events for match id=${match.id}`)
+  if (!res) { return { events: [], failed: true } }
+
   try {
-    if (!(await canMakeExternalRequest())) {
-      logger.debug('skip events: daily request cap reached for match id=%s', match.id)
-      return []
-    }
-    await noteExternalRequest()
-    const url = appendCredsToUrl(match.urls!.events!, liveCreds?.key, liveCreds?.secret)
-    logger.debug('events requesting %s', maskSecret(url))
-    const res = await fetcher(url)
-    logger.debug('events response status=%s ok=%s', res.status, res.ok)
-    if (!res.ok) { return [] }
     const json = await res.json()
     const events: RawEvent[] = json?.data?.event || json?.data?.events || []
     const ordered = orderEvents(events)
     const mapped = mapGoalEvents(ordered, match)
     logger.debug('events parsed for match id=%s count=%d', match.id, mapped.length)
-    return mapped
+    return { events: mapped, failed: false }
   } catch (err) {
-    logger.debug('events fetch/parse error for match %s: %s', match?.id, (err as Error)?.message || err)
-    return []
+    logger.warn('events parse error for match id=%s: %s', match.id, (err as Error)?.message || err)
+    return { events: [], failed: true }
   }
 }
 
