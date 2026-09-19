@@ -1,6 +1,7 @@
 import type { DreamLeagueTeamData } from '../types.ts'
 import config from '../../config.ts'
 import logger from '../../logger.ts'
+import { fetchWithTimeout } from './fetch-with-timeout.ts'
 
 let cachedTeamData: DreamLeagueTeamData | null = null
 let lastFetchTime = 0
@@ -21,7 +22,7 @@ export async function fetchDreamLeagueTeams (fetcher: typeof fetch = fetch): Pro
 
   try {
     const url = `${dreamLeagueCfg.apiUrl}/manager/teams`
-    const response = await fetcher(url)
+    const response = await fetchWithTimeout(fetcher, url)
 
     if (!response.ok) {
       logger.error(`[dream-league] API error: ${response.status} ${response.statusText}`)

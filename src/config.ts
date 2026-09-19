@@ -107,6 +107,18 @@ const config = convict({
       default: 10000,
       env: 'DAILY_REQUEST_CAP',
     },
+    requestTimeoutMs: {
+      doc: 'Abort any external request that has not responded within this many ms',
+      format: 'nat',
+      default: 10000,
+      env: 'REQUEST_TIMEOUT_MS',
+    },
+    eventsRefreshMs: {
+      doc: 'How often to re-check a live fixture whose score and status have not moved, to pick up silent provider corrections',
+      format: 'nat',
+      default: 1000 * 60 * 15,
+      env: 'EVENTS_REFRESH_MS',
+    },
     liveScore: {
       host: {
         doc: 'LiveScore host',

@@ -27,25 +27,34 @@ async function ensureLoaded (): Promise<void> {
 
 export async function noteExternalRequest (): Promise<number> {
   await ensureLoaded()
-  const today = new Date().toISOString().slice(0, 10)
-  if (today !== dateKey) {
-    dateKey = today
-    count = 0
-  }
+  rollDate()
   count++
   const store = getMetaStore()
   if (store) { await upsertMeta('dailyRequestCounter', { dateKey, count }) }
   return count
 }
 
+// Every entry point has to roll the day, not just this one: the cap check is still
+// reachable once the budget is spent, but noting a request is not, so leaving the roll
+// there alone would strand the counter on a spent day for good.
+function rollDate (): void {
+  const today = new Date().toISOString().slice(0, 10)
+  if (today !== dateKey) {
+    dateKey = today
+    count = 0
+  }
+}
+
 export async function canMakeExternalRequest (): Promise<boolean> {
   await ensureLoaded()
+  rollDate()
   const cap = config.get('dataSource').dailyRequestCap || Infinity
   return count < cap
 }
 
 export async function remainingRequestsToday (): Promise<number> {
   await ensureLoaded()
+  rollDate()
   const cap = config.get('dataSource').dailyRequestCap || Infinity
   return cap === Infinity ? Infinity : Math.max(0, cap - count)
 }

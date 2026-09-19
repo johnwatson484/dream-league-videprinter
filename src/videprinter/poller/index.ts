@@ -36,29 +36,34 @@ function hourIn (timezone: string, now: Date): number {
   }
 }
 
-async function processGoals (goals: GoalEvent[]): Promise<GoalEvent[]> {
-  const processed: GoalEvent[] = []
+async function enhanceGoals (goals: GoalEvent[]): Promise<GoalEvent[]> {
+  const enhanced: GoalEvent[] = []
   for (const goal of goals) {
-    // eventCache is the single source of truth for new/corrected/unchanged, for every
-    // provider: Mongo/eventsStore dedupe on read, but both are optional, so this guards
-    // broadcasts in-process too.
+    enhanced.push(await dreamLeagueService.enhanceGoal(goal))
+  }
+  return enhanced
+}
+
+// The cache gates broadcasts only, never persistence: the fetcher already diffs against
+// Mongo, so a goal whose save failed is offered again next poll and retried for free.
+function broadcastGoals (goals: GoalEvent[]): number {
+  let emitted = 0
+  for (const goal of goals) {
     const signature = contentSignatureFor(goal)
     const priorSignature = eventCache.get(goal.id)
     if (priorSignature === signature) { continue }
     const isCorrection = priorSignature !== undefined
     eventCache.set(goal.id, signature)
 
-    const enhancedGoal = await dreamLeagueService.enhanceGoal(goal)
-
-    videprinterBroadcaster.emit('goal', isCorrection ? { ...enhancedGoal, correction: true } : enhancedGoal)
+    videprinterBroadcaster.emit('goal', isCorrection ? { ...goal, correction: true } : goal)
     if (isCorrection) {
-      eventsStore.update(enhancedGoal)
+      eventsStore.update(goal)
     } else {
-      eventsStore.add(enhancedGoal)
+      eventsStore.add(goal)
     }
-    processed.push(enhancedGoal)
+    emitted++
   }
-  return processed
+  return emitted
 }
 
 async function processRetractions (retractions: GoalRetraction[]): Promise<void> {
@@ -86,15 +91,17 @@ export async function runPollCycle (): Promise<number> {
     }
   }
 
-  const enhancedGoals = await processGoals(goals)
+  const enhancedGoals = await enhanceGoals(goals)
 
-  if (enhancedGoals.length > 0) {
-    await saveEvents(enhancedGoals)
+  if (enhancedGoals.length > 0 && await saveEvents(enhancedGoals) === false) {
+    logger.warn(`[videprinter] could not persist ${enhancedGoals.length} goal event(s), retrying next poll`)
   }
+
+  const emitted = broadcastGoals(enhancedGoals)
 
   await processRetractions(retractions)
 
-  return enhancedGoals.length
+  return emitted
 }
 
 async function runTickBody (): Promise<number> {
@@ -111,14 +118,22 @@ async function runTickBody (): Promise<number> {
 
 export function startPoller (): void {
   const { pollLiveIntervalMs } = config.get('videprinter')
-  async function tick (): Promise<void> {
-    try {
-      await runTickBody()
-    } catch (err) {
-      logger.error({ err }, '[videprinter] poll error')
-    } finally {
-      setTimeout(tick, pollLiveIntervalMs)
+  let inFlight = false
+
+  // The next tick is scheduled synchronously and never awaits the poll, so a request or
+  // query that hangs can delay a cycle but can no longer stop the loop altogether.
+  function tick (): void {
+    setTimeout(tick, pollLiveIntervalMs)
+
+    if (inFlight) {
+      logger.error('[videprinter] previous poll still running, skipping this tick')
+      return
     }
+
+    inFlight = true
+    runTickBody()
+      .catch(err => logger.error({ err }, '[videprinter] poll error'))
+      .finally(() => { inFlight = false })
   }
   tick()
 }
