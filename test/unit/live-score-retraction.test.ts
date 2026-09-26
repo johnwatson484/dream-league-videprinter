@@ -9,7 +9,7 @@ vi.mock('../../src/videprinter/storage/mongo.ts', () => ({
   fetchActiveEventsForFixture: vi.fn().mockResolvedValue([]),
 }))
 
-const { fetchLiveScoreData } = await import('../../src/videprinter/fetchers/live-score.ts')
+const { fetchLiveScoreData, clearPendingFixtures } = await import('../../src/videprinter/fetchers/live-score.ts')
 const { eventsStore } = await import('../../src/videprinter/state/events-store.ts')
 const { fixturePollMemo } = await import('../../src/videprinter/state/fixture-poll-memo.ts')
 const config = (await import('../../src/config.ts')).default
@@ -85,6 +85,7 @@ describe('goal retraction safety gate', () => {
     })
     eventsStore.clear()
     fixturePollMemo.clear()
+    clearPendingFixtures()
   })
 
   test('does not retract a goal that is reconfirmed, unchanged, this poll', async () => {
