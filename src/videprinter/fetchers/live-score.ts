@@ -5,7 +5,6 @@ import { canMakeExternalRequest, noteExternalRequest } from '../state/request-co
 import { fetchActiveEventsForFixture } from '../storage/mongo.ts'
 import { eventsStore } from '../state/events-store.ts'
 import { fixturePollMemo } from '../state/fixture-poll-memo.ts'
-import { PendingFixtureTracker } from '../state/pending-fixtures.ts'
 import { excludeShootoutGoals } from '../aggregation/exclude-shootout-goals.ts'
 import { contentSignatureFor } from '../aggregation/event-signature.ts'
 import { fetchWithTimeout } from './fetch-with-timeout.ts'
@@ -432,13 +431,6 @@ function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
   return !(compIds.size && !compIds.has(Number(compId)))
 }
 
-// Fixtures whose score outran their event detail this poll, so a fast independent retry
-// loop can recheck just them without waiting for the next full live-matches cycle - and
-// can keep rechecking by their remembered urls.events even after they leave the live feed.
-const pendingFixtures = new PendingFixtureTracker<LiveMatch>()
-
-export function clearPendingFixtures (): void { pendingFixtures.clear() }
-
 // Existing state for this fixture, keyed by id, sourced from Mongo when enabled (so this
 // survives a process restart) or the in-memory events store otherwise.
 async function existingEventsForFixture (fixtureId: string): Promise<Map<string, GoalEvent>> {
@@ -479,13 +471,6 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
   const goals = trust.emit ? changedGoals(candidates, existing) : []
   const retractions = trust.retract ? computeRetractions(candidates, existing, fixtureId) : []
 
-  if (trust.reason === 'events-lagging') {
-    pendingFixtures.mark(fixtureId, match)
-  } else if (trust.reason !== 'events-fetch-failed') {
-    // A transient fetch failure proves nothing either way, so leave any existing mark alone.
-    pendingFixtures.forget(fixtureId)
-  }
-
   if (trust.emit && trust.retract) {
     fixturePollMemo.record(fixtureId, totalGoalsFromScore(match) ?? 0, String(match.status || ''))
   } else {
@@ -493,31 +478,6 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
   }
 
   return { goals, retractions }
-}
-
-// Rechecks fixtures marked pending by goalsForMatch, using the remembered match snapshot -
-// which still carries urls.events - so a fixture keeps getting retried even once it has
-// dropped out of the live-matches feed for good. Bounded by pendingFixtureGraceMs so a
-// fixture whose events never catch up is eventually given up on, loudly, instead of forever.
-export async function retryPendingFixtures (fetcher: typeof fetch = fetch): Promise<LiveScorePollResult> {
-  const ds = config.get('dataSource')
-  if (!ds.liveScore.key || !ds.liveScore.secret) { return { goals: [], matches: [], retractions: [] } }
-
-  for (const { fixtureId } of pendingFixtures.expire(ds.pendingFixtureGraceMs)) {
-    logger.error('giving up on fixture id=%s: events never caught up with the score within %dms, goal(s) may be missing', fixtureId, ds.pendingFixtureGraceMs)
-  }
-
-  const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  const goals: GoalEvent[] = []
-  const retractions: GoalRetraction[] = []
-  for (const { data: match } of pendingFixtures.all()) {
-    const result = await goalsForMatch(match, liveCreds, fetcher)
-    goals.push(...result.goals)
-    retractions.push(...result.retractions)
-  }
-
-  goals.sort((a, b) => new Date(a.utcTimestamp).getTime() - new Date(b.utcTimestamp).getTime())
-  return { goals, matches: [], retractions }
 }
 
 const FINAL_STATUSES = new Set(['FT', 'AET', 'AP', 'FT_PEN', 'FINISHED', 'AFTER ET', 'AFTER PEN.', 'ABANDONED', 'CANCELLED', 'POSTPONED'])
@@ -566,7 +526,6 @@ function changedGoals (candidates: GoalEvent[], existing: Map<string, GoalEvent>
 interface PollTrust {
   emit: boolean
   retract: boolean
-  reason: 'ok' | 'events-fetch-failed' | 'score-unparseable' | 'events-lagging'
 }
 
 // A failed events fetch or a finished match no longer surfacing event detail leaves
@@ -579,21 +538,21 @@ interface PollTrust {
 function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean, idsAreStable: boolean): PollTrust {
   if (eventsFetchFailed) {
     logger.warn('ignoring poll for fixture id=%s: events fetch failed this poll', fixtureId)
-    return { emit: false, retract: false, reason: 'events-fetch-failed' }
+    return { emit: false, retract: false }
   }
 
   const expectedGoals = totalGoalsFromScore(match)
   if (expectedGoals == null) {
     logger.warn('skipping retraction check for fixture id=%s: score unparseable', fixtureId)
-    return { emit: true, retract: false, reason: 'score-unparseable' }
+    return { emit: true, retract: false }
   }
 
   if (candidates.length < expectedGoals) {
     logger.warn('events lag the score for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found%s', fixtureId, expectedGoals, candidates.length, idsAreStable ? ', emitting the goals already confirmed' : ', withholding them')
-    return { emit: idsAreStable, retract: false, reason: 'events-lagging' }
+    return { emit: idsAreStable, retract: false }
   }
 
-  return { emit: true, retract: true, reason: 'ok' }
+  return { emit: true, retract: true }
 }
 
 function computeRetractions (candidates: GoalEvent[], existing: Map<string, GoalEvent>, fixtureId: string): GoalRetraction[] {
@@ -627,23 +586,6 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
 function eventsUrlFor (fixtureId: string | number): string {
   const { host } = config.get('dataSource').liveScore
   return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(fixtureId))}`
-}
-
-// Rebuilds a fixture's goals straight from the provider, reading and writing no local state.
-// Exists so the goal-id migration can work out what a stored goal's id would be under the
-// current scheme, including for fixtures that finished long ago and have left the live feed.
-export async function rebuildGoalsForFixture (fixtureId: string, fetcher: typeof fetch = fetch): Promise<GoalEvent[]> {
-  const { key, secret } = config.get('dataSource').liveScore
-  const url = appendCredsToUrl(eventsUrlFor(fixtureId), key, secret)
-  const res = await issueRequest(fetcher, url, `events for fixture id=${fixtureId}`)
-  if (!res) { return [] }
-
-  const json = await res.json()
-  const match: LiveMatch | undefined = json?.data?.match
-  if (!match) { return [] }
-  const events: RawEvent[] = json?.data?.event || json?.data?.events || []
-  const mapped = mapGoalEvents(orderEvents(events), match)
-  return excludeShootoutGoals(buildGoalEvents(match, mapped))
 }
 
 async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MatchEventsResult> {
