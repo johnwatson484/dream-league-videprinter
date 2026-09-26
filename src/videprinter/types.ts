@@ -6,6 +6,9 @@ export interface GoalEvent {
   minute: number | null
   scoringTeam: { name: string }
   concedingTeam: { name: string }
+  // Which way round the fixture reads. Absent on events stored before this was captured.
+  homeTeam?: string
+  awayTeam?: string
   scorer: { name: string; normalizedName: string }
   assist: { name: string; normalizedName: string } | null
   scoreAfterEvent: { home: number | null; away: number | null }

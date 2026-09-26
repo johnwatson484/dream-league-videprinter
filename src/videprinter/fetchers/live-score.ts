@@ -237,6 +237,8 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): Omit<GoalEve
     minute,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
     concedingTeam: { name: scoringTeamGuess === names.home ? (names.away || 'Unknown') : (names.home || 'Unknown') },
+    homeTeam: names.home || 'Unknown',
+    awayTeam: names.away || 'Unknown',
     scorer: { name: rawGoal.scorer || 'Unknown', normalizedName: (rawGoal.scorer || 'Unknown').toLowerCase() },
     assist: rawGoal.assist ? { name: rawGoal.assist, normalizedName: rawGoal.assist.toLowerCase() } : null,
     scoreAfterEvent: homeScore != null && awayScore != null ? { home: homeScore, away: awayScore } : { home: null, away: null },
