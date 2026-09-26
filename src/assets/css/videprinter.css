@@ -29,8 +29,18 @@
   background: #d1ecf1;
 }
 
+/* Amber rather than green: this row changed, it is not a new goal. */
+.videprinter-event.corrected-goal {
+  animation: highlightCorrection 1s ease-in-out;
+}
+
 @keyframes highlightGoal {
   0% { background-color: #d4edda; }
+  100% { background-color: #ffffff; }
+}
+
+@keyframes highlightCorrection {
+  0% { background-color: #fff3cd; }
   100% { background-color: #ffffff; }
 }
 
@@ -54,19 +64,20 @@
 .scoring-team {
   font-weight: 800;
   color: #212529;
-  margin-right: 4px;
 }
 
 .conceding-team {
   font-weight: 400;
   color: #6c757d;
-  margin-left: 4px;
 }
 
+/* The header is a flex row, so the whitespace between the team names collapses. Space the
+   fixture from here, which stays put, rather than from the teams, which swap sides. */
 .vs-text {
   font-weight: 300;
   color: #adb5bd;
   font-size: 0.9em;
+  margin: 0 4px;
 }
 
 .goal-scorer {

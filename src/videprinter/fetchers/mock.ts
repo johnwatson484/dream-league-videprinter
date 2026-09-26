@@ -47,6 +47,8 @@ export async function fetchLiveGoals (): Promise<GoalEvent[]> {
     minute,
     scoringTeam: { name: scoringTeamIsHome ? home : away },
     concedingTeam: { name: scoringTeamIsHome ? away : home },
+    homeTeam: home,
+    awayTeam: away,
     scorer: { name: scorer, normalizedName: scorer.toLowerCase() },
     assist: null,
     scoreAfterEvent: { home: homeGoals, away: awayGoals },

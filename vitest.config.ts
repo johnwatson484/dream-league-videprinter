@@ -27,7 +27,9 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['test/unit/**/*.test.ts'],
+          // .js so the browser asset's tests can use DOM globals without pulling the DOM
+          // lib into the server's typecheck.
+          include: ['test/unit/**/*.test.{ts,js}'],
           globals: true,
           clearMocks: true,
           environment: 'node',
