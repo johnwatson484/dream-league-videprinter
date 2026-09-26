@@ -119,6 +119,12 @@ const config = convict({
       default: 1000 * 60 * 15,
       env: 'EVENTS_REFRESH_MS',
     },
+    fixtureConcurrency: {
+      doc: 'How many fixtures to fetch events for at once within a poll cycle',
+      format: 'nat',
+      default: 5,
+      env: 'FIXTURE_CONCURRENCY',
+    },
     liveScore: {
       host: {
         doc: 'LiveScore host',

@@ -5,6 +5,7 @@ import { registerPlugins } from './plugins/index.ts'
 import config from './config.ts'
 import logger from './logger.ts'
 import { initMongo, closeMongo } from './videprinter/storage/mongo.ts'
+import { persistRequestCount } from './videprinter/state/request-counter.ts'
 
 async function createServer (): Promise<Server> {
   const server = Hapi.server({
@@ -26,7 +27,10 @@ async function createServer (): Promise<Server> {
   await registerPlugins(server)
 
   server.ext('onPreStart', async () => { await initMongo(logger) })
-  server.ext('onPostStop', async () => { await closeMongo() })
+  server.ext('onPostStop', async () => {
+    await persistRequestCount()
+    await closeMongo()
+  })
 
   return server
 }
