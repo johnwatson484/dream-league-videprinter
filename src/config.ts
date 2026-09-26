@@ -70,6 +70,12 @@ const config = convict({
       default: 1000 * 60 * 4,
       env: 'VIDEPRINTER_POLL_LIVE_MS',
     },
+    pendingFixtureRetryMs: {
+      doc: 'How often to recheck fixtures whose score outran their event detail, independent of pollLiveIntervalMs',
+      format: 'nat',
+      default: 1000 * 30,
+      env: 'VIDEPRINTER_PENDING_FIXTURE_RETRY_MS',
+    },
     quietHoursStart: {
       doc: 'Hour (0-23) to stop polling during quiet period',
       format: 'nat',
@@ -118,6 +124,12 @@ const config = convict({
       format: 'nat',
       default: 1000 * 60 * 15,
       env: 'EVENTS_REFRESH_MS',
+    },
+    pendingFixtureGraceMs: {
+      doc: 'How long to keep retrying a fixture whose score outran its event detail before giving up and logging the loss',
+      format: 'nat',
+      default: 1000 * 60 * 10,
+      env: 'PENDING_FIXTURE_GRACE_MS',
     },
     liveScore: {
       host: {
