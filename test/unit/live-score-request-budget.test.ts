@@ -94,7 +94,7 @@ describe('per-match events request budget', () => {
     const second = await fetchLiveScoreData(movedOn as unknown as typeof fetch)
 
     expect(eventsRequestCount(movedOn)).toBe(1)
-    expect(second.goals.map(g => g.id)).toEqual(['1-h-2'])
+    expect(second.goals.map(g => g.id)).toEqual(['1-102'])
   })
 
   test('still re-checks a live fixture once the refresh interval has elapsed, so corrections are not missed', async () => {

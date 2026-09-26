@@ -116,4 +116,55 @@ describe('goal identity', () => {
     expect(goals).toHaveLength(2)
     expect(goals[0]!.id).not.toBe(goals[1]!.id)
   })
+
+  test('falls back to the positional scheme when the source supplies no event id', async () => {
+    const { goals } = await fetchLiveScoreData(fetcherReturning([match()]))
+
+    expect(goals[0]!.id).toBe('1-h-1')
+  })
+})
+
+describe('goal identity from provider event ids', () => {
+  function eventsFetcher (events: Record<string, unknown>[], scoreOverride?: string): typeof fetch {
+    const m = { ...match(), goals: [], scores: { score: scoreOverride ?? '2 - 0' }, urls: { events: 'https://example.com/e.json' } }
+    return vi.fn(async (url: string) => {
+      if (String(url).includes('/events')) {
+        return { ok: true, status: 200, json: async () => ({ data: { event: events } }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ data: { match: [m] } }) }
+    }) as unknown as typeof fetch
+  }
+
+  const first = { id: 421058736, event: 'GOAL', time: 23, sort: 0, player: { name: 'Fletcher, Ashley' }, is_home: true, is_away: false }
+  const second = { id: 421058737, event: 'GOAL', time: 67, sort: 1, player: { name: 'Second, Sam' }, is_home: true, is_away: false }
+
+  beforeEach(() => {
+    config.set('dataSource.liveScore.key', 'test-key')
+    config.set('dataSource.liveScore.secret', 'test-secret')
+    config.set('dataSource.liveScore.competitions', {
+      championship: 3, leagueOne: 4, leagueTwo: 5, faCup: 6, leagueCup: 7,
+    })
+  })
+
+  test('uses the provider event id rather than the goal position', async () => {
+    const { goals } = await fetchLiveScoreData(eventsFetcher([first, second]))
+
+    expect(goals.map(g => g.id)).toEqual(['1-421058736', '1-421058737'])
+  })
+
+  test('keeps an existing goal id when an earlier goal arrives late and shifts every position', async () => {
+    const late = { id: 421058735, event: 'GOAL', time: 5, sort: 0, player: { name: 'Early, Eric' }, is_home: true, is_away: false }
+
+    const before = await fetchLiveScoreData(eventsFetcher([first, second]))
+    const after = await fetchLiveScoreData(eventsFetcher([late, first, second], '3 - 0'))
+
+    expect(before.goals.map(g => g.id)).toEqual(['1-421058736', '1-421058737'])
+    expect(after.goals.map(g => g.id)).toEqual(['1-421058735', '1-421058736', '1-421058737'])
+  })
+
+  test('emits the goals it has while the events list still lags the score', async () => {
+    const { goals } = await fetchLiveScoreData(eventsFetcher([first], '2 - 0'))
+
+    expect(goals.map(g => g.id)).toEqual(['1-421058736'])
+  })
 })

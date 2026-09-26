@@ -5,7 +5,6 @@ import { canMakeExternalRequest, noteExternalRequest } from '../state/request-co
 import { fetchActiveEventsForFixture } from '../storage/mongo.ts'
 import { eventsStore } from '../state/events-store.ts'
 import { fixturePollMemo } from '../state/fixture-poll-memo.ts'
-import { PendingFixtureTracker } from '../state/pending-fixtures.ts'
 import { excludeShootoutGoals } from '../aggregation/exclude-shootout-goals.ts'
 import { contentSignatureFor } from '../aggregation/event-signature.ts'
 import { fetchWithTimeout } from './fetch-with-timeout.ts'
@@ -267,10 +266,12 @@ function sideFor (scoringTeamName: string, names: { home: string | null; away: s
   return `unknown:${scoringTeamName}`
 }
 
-// Identity is `match + side + Nth goal for that side`, not scorer/minute/score text, so a
-// provider correction (renamed scorer, confirmed stoppage time) updates the same goal instead
-// of minting a new one. Raw entries that are byte-for-byte repeats within this snapshot are
-// collapsed here too, before they can consume an ordinal slot as a phantom extra goal.
+// Identity is the provider's own event id where it gives us one, so a correction (renamed
+// scorer, confirmed stoppage time, VAR score change) updates the same goal and a partial
+// event list cannot shift a goal onto an id that belongs to another. Only sources that
+// supply no event id fall back to `match + side + Nth goal for that side`, which is
+// positional and therefore only stable while the list is complete. Raw entries that are
+// byte-for-byte repeats within this snapshot are collapsed before they can consume a slot.
 function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEvent[] {
   const names = getTeamNames(match)
   const ordinals = new Map<string, number>()
@@ -286,10 +287,18 @@ function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEve
 
     const ordinal = (ordinals.get(side) ?? 0) + 1
     ordinals.set(side, ordinal)
-    result.push({ ...partial, id: `${match.id}-${side}-${ordinal}` })
+    const providerEventId = providerEventIdOf(rawGoal)
+    const id = providerEventId
+      ? `${match.id}-${providerEventId}`
+      : `${match.id}-${side}-${ordinal}`
+    result.push({ ...partial, id })
   }
 
   return result
+}
+
+function providerEventIdOf (rawGoal: NormalizeInput): string {
+  return String(rawGoal.eventId ?? '').trim()
 }
 
 export async function fetchLiveScoreGoals (fetcher: typeof fetch = fetch): Promise<GoalEvent[]> {
@@ -422,13 +431,6 @@ function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
   return !(compIds.size && !compIds.has(Number(compId)))
 }
 
-// Fixtures whose score outran their event detail this poll, so a fast independent retry
-// loop can recheck just them without waiting for the next full live-matches cycle - and
-// can keep rechecking by their remembered urls.events even after they leave the live feed.
-const pendingFixtures = new PendingFixtureTracker<LiveMatch>()
-
-export function clearPendingFixtures (): void { pendingFixtures.clear() }
-
 // Existing state for this fixture, keyed by id, sourced from Mongo when enabled (so this
 // survives a process restart) or the in-memory events store otherwise.
 async function existingEventsForFixture (fixtureId: string): Promise<Map<string, GoalEvent>> {
@@ -463,17 +465,11 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
   }
 
   const candidates = excludeShootoutGoals(buildGoalEvents(match, events))
-  const trust = assessPoll(match, candidates, fixtureId, eventsFetchFailed)
+  const idsAreStable = events.length > 0 && events.every(e => providerEventIdOf(e) !== '')
+  const trust = assessPoll(match, candidates, fixtureId, eventsFetchFailed, idsAreStable)
 
   const goals = trust.emit ? changedGoals(candidates, existing) : []
   const retractions = trust.retract ? computeRetractions(candidates, existing, fixtureId) : []
-
-  if (trust.reason === 'events-lagging') {
-    pendingFixtures.mark(fixtureId, match)
-  } else if (trust.reason !== 'events-fetch-failed') {
-    // A transient fetch failure proves nothing either way, so leave any existing mark alone.
-    pendingFixtures.forget(fixtureId)
-  }
 
   if (trust.emit && trust.retract) {
     fixturePollMemo.record(fixtureId, totalGoalsFromScore(match) ?? 0, String(match.status || ''))
@@ -482,31 +478,6 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
   }
 
   return { goals, retractions }
-}
-
-// Rechecks fixtures marked pending by goalsForMatch, using the remembered match snapshot -
-// which still carries urls.events - so a fixture keeps getting retried even once it has
-// dropped out of the live-matches feed for good. Bounded by pendingFixtureGraceMs so a
-// fixture whose events never catch up is eventually given up on, loudly, instead of forever.
-export async function retryPendingFixtures (fetcher: typeof fetch = fetch): Promise<LiveScorePollResult> {
-  const ds = config.get('dataSource')
-  if (!ds.liveScore.key || !ds.liveScore.secret) { return { goals: [], matches: [], retractions: [] } }
-
-  for (const { fixtureId } of pendingFixtures.expire(ds.pendingFixtureGraceMs)) {
-    logger.error('giving up on fixture id=%s: events never caught up with the score within %dms, goal(s) may be missing', fixtureId, ds.pendingFixtureGraceMs)
-  }
-
-  const liveCreds: LiveCreds = { key: ds.liveScore.key, secret: ds.liveScore.secret }
-  const goals: GoalEvent[] = []
-  const retractions: GoalRetraction[] = []
-  for (const { data: match } of pendingFixtures.all()) {
-    const result = await goalsForMatch(match, liveCreds, fetcher)
-    goals.push(...result.goals)
-    retractions.push(...result.retractions)
-  }
-
-  goals.sort((a, b) => new Date(a.utcTimestamp).getTime() - new Date(b.utcTimestamp).getTime())
-  return { goals, matches: [], retractions }
 }
 
 const FINAL_STATUSES = new Set(['FT', 'AET', 'AP', 'FT_PEN', 'FINISHED', 'AFTER ET', 'AFTER PEN.', 'ABANDONED', 'CANCELLED', 'POSTPONED'])
@@ -555,33 +526,33 @@ function changedGoals (candidates: GoalEvent[], existing: Map<string, GoalEvent>
 interface PollTrust {
   emit: boolean
   retract: boolean
-  reason: 'ok' | 'events-fetch-failed' | 'score-unparseable' | 'events-lagging'
 }
 
 // A failed events fetch or a finished match no longer surfacing event detail leaves
 // `candidates` empty or short for reasons that have nothing to do with a goal being
 // disallowed, so those cases must not be mistaken for a fixture's goals being retracted.
-// A short list is not safe to emit either: ids are positional, so the Nth goal slides onto
-// an id that already belongs to an earlier goal and overwrites it on save. An unparseable
-// score only costs us the ability to verify, so goals still stand - only retraction stops.
-function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean): PollTrust {
+// A short list never permits retraction. It is safe to emit only when every goal carries a
+// provider id: with positional ids the Nth goal would slide onto an id already belonging to
+// an earlier goal and overwrite it on save. An unparseable score only costs us the ability
+// to verify, so goals still stand - only retraction stops.
+function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean, idsAreStable: boolean): PollTrust {
   if (eventsFetchFailed) {
     logger.warn('ignoring poll for fixture id=%s: events fetch failed this poll', fixtureId)
-    return { emit: false, retract: false, reason: 'events-fetch-failed' }
+    return { emit: false, retract: false }
   }
 
   const expectedGoals = totalGoalsFromScore(match)
   if (expectedGoals == null) {
     logger.warn('skipping retraction check for fixture id=%s: score unparseable', fixtureId)
-    return { emit: true, retract: false, reason: 'score-unparseable' }
+    return { emit: true, retract: false }
   }
 
   if (candidates.length < expectedGoals) {
-    logger.warn('ignoring poll for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found', fixtureId, expectedGoals, candidates.length)
-    return { emit: false, retract: false, reason: 'events-lagging' }
+    logger.warn('events lag the score for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found%s', fixtureId, expectedGoals, candidates.length, idsAreStable ? ', emitting the goals already confirmed' : ', withholding them')
+    return { emit: idsAreStable, retract: false }
   }
 
-  return { emit: true, retract: true, reason: 'ok' }
+  return { emit: true, retract: true }
 }
 
 function computeRetractions (candidates: GoalEvent[], existing: Map<string, GoalEvent>, fixtureId: string): GoalRetraction[] {
@@ -612,9 +583,9 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
 // id 404s in 0.3s, a real one never responds). `matches/events.json?match_id=<matchId>` on
 // the same host returns the same payload in ~0.25s, so build the URL ourselves and treat
 // `urls.events` purely as the provider's signal that events exist for this fixture.
-function eventsUrlFor (match: LiveMatch): string {
+function eventsUrlFor (fixtureId: string | number): string {
   const { host } = config.get('dataSource').liveScore
-  return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(match.id))}`
+  return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(fixtureId))}`
 }
 
 async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MatchEventsResult> {
@@ -623,7 +594,7 @@ async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher
     return { events: [], failed: true }
   }
 
-  const url = appendCredsToUrl(eventsUrlFor(match), liveCreds?.key, liveCreds?.secret)
+  const url = appendCredsToUrl(eventsUrlFor(match.id), liveCreds?.key, liveCreds?.secret)
   logger.debug('events requesting %s', maskSecret(url))
   const res = await issueRequest(fetcher, url, `events for match id=${match.id}`)
   if (!res) { return { events: [], failed: true } }

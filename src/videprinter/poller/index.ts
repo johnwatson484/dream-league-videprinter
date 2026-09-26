@@ -2,7 +2,7 @@ import type { GoalEvent } from '../types.ts'
 import config from '../../config.ts'
 import logger from '../../logger.ts'
 import { fetchLiveGoals as fetchMockGoals } from '../fetchers/mock.ts'
-import { fetchLiveScoreData, retryPendingFixtures, type GoalRetraction } from '../fetchers/live-score.ts'
+import { fetchLiveScoreData, type GoalRetraction } from '../fetchers/live-score.ts'
 import { videprinterBroadcaster } from '../state/broadcaster.ts'
 import { eventsStore } from '../state/events-store.ts'
 import { eventCache } from '../state/event-cache.ts'
@@ -76,22 +76,6 @@ async function processRetractions (retractions: GoalRetraction[]): Promise<void>
   await retractEvents(retractions.map(r => r.id))
 }
 
-// Shared by the main poll cycle and the pending-fixture retry, so both persist and
-// broadcast identically regardless of which clock discovered the goal.
-async function finalizeGoalsAndRetractions (goals: GoalEvent[], retractions: GoalRetraction[]): Promise<number> {
-  const enhancedGoals = await enhanceGoals(goals)
-
-  if (enhancedGoals.length > 0 && await saveEvents(enhancedGoals) === false) {
-    logger.warn(`[videprinter] could not persist ${enhancedGoals.length} goal event(s), retrying next poll`)
-  }
-
-  const emitted = broadcastGoals(enhancedGoals)
-
-  await processRetractions(retractions)
-
-  return emitted
-}
-
 export async function runPollCycle (): Promise<number> {
   const { provider } = config.get('dataSource')
   let goals: GoalEvent[] = []
@@ -107,22 +91,16 @@ export async function runPollCycle (): Promise<number> {
     }
   }
 
-  return await finalizeGoalsAndRetractions(goals, retractions)
-}
+  const enhancedGoals = await enhanceGoals(goals)
 
-// Independent, faster clock that rechecks only fixtures goalsForMatch flagged as lagging -
-// score already moved but event detail had not - so a late goal is not held hostage to the
-// next full pollLiveIntervalMs cycle, or lost entirely once the fixture leaves the live feed.
-export async function runPendingFixtureRetry (): Promise<number> {
-  const { provider } = config.get('dataSource')
-  if (provider !== 'live-score') { return 0 }
-  if (isQuietHours()) { return 0 }
-
-  const { goals, retractions } = await retryPendingFixtures()
-  const emitted = await finalizeGoalsAndRetractions(goals, retractions)
-  if (emitted > 0) {
-    logger.info(`[videprinter] pending fixture retry emitted=${emitted}`)
+  if (enhancedGoals.length > 0 && await saveEvents(enhancedGoals) === false) {
+    logger.warn(`[videprinter] could not persist ${enhancedGoals.length} goal event(s), retrying next poll`)
   }
+
+  const emitted = broadcastGoals(enhancedGoals)
+
+  await processRetractions(retractions)
+
   return emitted
 }
 
@@ -139,9 +117,7 @@ async function runTickBody (): Promise<number> {
 }
 
 export function startPoller (): void {
-  const { pollLiveIntervalMs, pendingFixtureRetryMs } = config.get('videprinter')
-  // Shared by both timers: they touch the same in-memory stores and Mongo collections, so
-  // letting them run concurrently risks duplicate broadcasts/writes for the same fixture.
+  const { pollLiveIntervalMs } = config.get('videprinter')
   let busy = false
 
   // The next tick is scheduled synchronously and never awaits the poll, so a request or
@@ -160,19 +136,5 @@ export function startPoller (): void {
       .finally(() => { busy = false })
   }
 
-  // Runs on its own, much shorter clock, independent of the main tick so a lagging
-  // fixture's score/event mismatch does not have to wait for the next full cycle.
-  function retryTick (): void {
-    setTimeout(retryTick, pendingFixtureRetryMs)
-
-    if (busy) { return }
-
-    busy = true
-    runPendingFixtureRetry()
-      .catch(err => logger.error({ err }, '[videprinter] pending fixture retry error'))
-      .finally(() => { busy = false })
-  }
-
   tick()
-  retryTick()
 }
