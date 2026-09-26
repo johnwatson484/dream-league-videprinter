@@ -4,6 +4,7 @@ import { getMetaStore, upsertMeta } from '../storage/meta-store.ts'
 let dateKey = new Date().toISOString().slice(0, 10)
 let count = 0
 let loaded = false
+let dirty = false
 
 async function ensureLoaded (): Promise<void> {
   if (loaded) { return }
@@ -29,9 +30,19 @@ export async function noteExternalRequest (): Promise<number> {
   await ensureLoaded()
   rollDate()
   count++
-  const store = getMetaStore()
-  if (store) { await upsertMeta('dailyRequestCounter', { dateKey, count }) }
+  dirty = true
   return count
+}
+
+// Persisting on every request put a Mongo round-trip in the fetch path, ~80 a cycle on a
+// busy Saturday. The in-memory count is what the cap is checked against; the stored copy
+// only has to survive a restart, so the poller flushes it once a cycle.
+export async function persistRequestCount (): Promise<void> {
+  if (!dirty) { return }
+  dirty = false
+  const store = getMetaStore()
+  if (!store) { return }
+  await upsertMeta('dailyRequestCounter', { dateKey, count })
 }
 
 // Every entry point has to roll the day, not just this one: the cap check is still
@@ -42,6 +53,7 @@ function rollDate (): void {
   if (today !== dateKey) {
     dateKey = today
     count = 0
+    dirty = true
   }
 }
 
@@ -58,9 +70,3 @@ export async function remainingRequestsToday (): Promise<number> {
   const cap = config.get('dataSource').dailyRequestCap || Infinity
   return cap === Infinity ? Infinity : Math.max(0, cap - count)
 }
-
-export function currentRequestCount (): number { return count }
-
-export function noteExternalRequestSync (): Promise<number> { return noteExternalRequest() }
-export function canMakeExternalRequestSync (): boolean { return count < (config.get('dataSource').dailyRequestCap || Infinity) }
-export function remainingRequestsTodaySync (): number { const cap = config.get('dataSource').dailyRequestCap || Infinity; return cap === Infinity ? Infinity : Math.max(0, cap - count) }

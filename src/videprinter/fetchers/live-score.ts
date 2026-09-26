@@ -410,13 +410,16 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
     }
   })
 
-  const goals: GoalEvent[] = []
-  const retractions: GoalRetraction[] = []
-  for (const m of matchesToProcess) {
+  const results = await mapWithConcurrency(matchesToProcess, config.get('dataSource').fixtureConcurrency, async m => {
     const compId = m?.competition?.id ?? m.competition_id
     const compName = m?.competition?.name ?? m.competition_name
     logger.debug('processing match id=%s comp=%s(%s)', m.id, compName, compId)
-    const result = await goalsForMatch(m, liveCreds, fetcher)
+    return await goalsForMatch(m, liveCreds, fetcher)
+  })
+
+  const goals: GoalEvent[] = []
+  const retractions: GoalRetraction[] = []
+  for (const result of results) {
     goals.push(...result.goals)
     retractions.push(...result.retractions)
   }
@@ -431,6 +434,23 @@ async function collectGoalsAndMatches (matches: LiveMatch[], liveCreds: LiveCred
 function shouldIncludeMatch (match: LiveMatch, compIds: Set<number>): boolean {
   const compId = match?.competition?.id ?? match.competition_id
   return !(compIds.size && !compIds.has(Number(compId)))
+}
+
+// Fixtures are independent - each reads and writes only its own fixture's state - so a
+// cycle does not have to be one round-trip after another. Results stay in input order.
+async function mapWithConcurrency<T, R> (items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+
+  async function drain (): Promise<void> {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await worker(items[index]!)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, drain))
+  return results
 }
 
 // Existing state for this fixture, keyed by id, sourced from Mongo when enabled (so this

@@ -9,7 +9,7 @@ import { eventCache } from '../state/event-cache.ts'
 import { contentSignatureFor } from '../aggregation/event-signature.ts'
 import { saveEvents, retractEvents } from '../storage/mongo.ts'
 import { saveMatches } from '../storage/match-store.ts'
-import { remainingRequestsToday } from '../state/request-counter.ts'
+import { remainingRequestsToday, persistRequestCount } from '../state/request-counter.ts'
 import { dreamLeagueService } from '../matching/dream-league-service.ts'
 
 export function isQuietHours (now: Date = new Date()): boolean {
@@ -111,6 +111,7 @@ async function runTickBody (): Promise<number> {
   }
 
   const emitted = await runPollCycle()
+  await persistRequestCount()
   const remaining = await remainingRequestsToday()
   logger.info(`[videprinter] poll tick emitted=${emitted} remainingQuota=${remaining}`)
   return emitted
