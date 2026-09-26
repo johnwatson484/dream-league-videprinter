@@ -57,6 +57,11 @@ interface LiveMatch {
   urls?: { events?: string }
 }
 
+// `matches/events.json` returns `player`/`info` as `{ id, name }` objects and signals the
+// side with `is_home`/`is_away` booleans, whereas older payloads used plain strings and
+// `home_away`/`side`/`team`. Both shapes are accepted so either source normalizes cleanly.
+type NamedRef = string | { id?: string | number | null; name?: string | null } | null
+
 interface RawEvent {
   id?: string | number
   event_id?: string | number
@@ -66,19 +71,21 @@ interface RawEvent {
   minute?: string | number
   min?: string | number
   sort?: string | number
-  scorer?: string
-  player?: string
+  scorer?: NamedRef
+  player?: NamedRef
   player_name?: string
   name?: string
-  assist?: string
+  assist?: NamedRef
   assist_name?: string
-  info?: string
+  info?: NamedRef
   score?: string
   home_away?: string
   side?: string
   team?: string
   team_name?: string
   club?: string
+  is_home?: boolean
+  is_away?: boolean
 }
 
 interface MappedGoal {
@@ -339,16 +346,27 @@ async function getLiveMatches (fetcher: typeof fetch, url: string): Promise<Live
 // Counted even when it fails: the provider's quota is spent the moment the request leaves,
 // and a failure that costs quota without being counted is how an overrun stays invisible.
 async function issueRequest (fetcher: typeof fetch, url: string, label: string): Promise<Response | null> {
+  const startedAt = Date.now()
   try {
     const res = await fetchWithTimeout(fetcher, url)
-    logger.debug('%s response status=%s ok=%s', label, res.status, res.ok)
+    logger.debug('%s response status=%s ok=%s elapsedMs=%d', label, res.status, res.ok, Date.now() - startedAt)
     if (!res.ok) {
-      logger.warn('%s request rejected: status=%s', label, res.status)
+      logger.warn('%s request rejected: status=%s elapsedMs=%d', label, res.status, Date.now() - startedAt)
       return null
     }
     return res
   } catch (err) {
-    logger.warn('%s request failed: %s', label, (err as Error)?.message || err)
+    // `message` alone is just "This operation was aborted"; undici puts the real reason
+    // (DNS, TLS, connect timeout) on `cause`.
+    const error = err as Error & { cause?: unknown; code?: string }
+    logger.warn({
+      err: error,
+      cause: error?.cause,
+      code: error?.code,
+      name: error?.name,
+      elapsedMs: Date.now() - startedAt,
+      url: maskSecret(url),
+    }, `${label} request failed`)
     return null
   } finally {
     await noteExternalRequest()
@@ -589,13 +607,23 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
   return url + sep + params.join('&')
 }
 
+// The provider hands us `match.urls.events` pointing at `scores/events.json?id=<matchId>`,
+// but that route hangs until timeout for ANY numeric id (verified with curl: a non-numeric
+// id 404s in 0.3s, a real one never responds). `matches/events.json?match_id=<matchId>` on
+// the same host returns the same payload in ~0.25s, so build the URL ourselves and treat
+// `urls.events` purely as the provider's signal that events exist for this fixture.
+function eventsUrlFor (match: LiveMatch): string {
+  const { host } = config.get('dataSource').liveScore
+  return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(match.id))}`
+}
+
 async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MatchEventsResult> {
   if (!(await canMakeExternalRequest())) {
     logger.warn('events fetch skipped for match id=%s: daily request cap reached', match.id)
     return { events: [], failed: true }
   }
 
-  const url = appendCredsToUrl(match.urls!.events!, liveCreds?.key, liveCreds?.secret)
+  const url = appendCredsToUrl(eventsUrlFor(match), liveCreds?.key, liveCreds?.secret)
   logger.debug('events requesting %s', maskSecret(url))
   const res = await issueRequest(fetcher, url, `events for match id=${match.id}`)
   if (!res) { return { events: [], failed: true } }
@@ -626,10 +654,18 @@ function orderEvents (events: RawEvent[]): RawEvent[] {
 }
 
 function determineSide (e: RawEvent): string | null {
+  if (e?.is_home === true) { return 'h' }
+  if (e?.is_away === true) { return 'a' }
   const sideRaw = (e?.home_away || e?.side || e?.team || '').toString().toLowerCase()
   if (sideRaw.startsWith('h')) { return 'h' }
   if (sideRaw.startsWith('a')) { return 'a' }
   return null
+}
+
+function nameOf (ref: NamedRef | undefined): string {
+  if (!ref) { return '' }
+  if (typeof ref === 'string') { return ref }
+  return (ref.name || '').toString()
 }
 
 function mapGoalEvents (ordered: RawEvent[], match: LiveMatch): MappedGoal[] {
@@ -688,7 +724,7 @@ function isLikelyGoalEvent (e: RawEvent): boolean {
 }
 
 function getGoalScorer (e: RawEvent): string {
-  const baseScorer = e?.scorer || e?.player || e?.player_name || e?.name || 'Unknown'
+  const baseScorer = nameOf(e?.scorer) || nameOf(e?.player) || e?.player_name || e?.name || 'Unknown'
   const eventType = (e?.event || '').toString().toUpperCase()
 
   if (eventType === 'OWN_GOAL') {
@@ -699,5 +735,5 @@ function getGoalScorer (e: RawEvent): string {
 }
 
 function getAssist (e: RawEvent): string | null {
-  return e?.assist || e?.assist_name || e?.info || null
+  return nameOf(e?.assist) || e?.assist_name || nameOf(e?.info) || null
 }
