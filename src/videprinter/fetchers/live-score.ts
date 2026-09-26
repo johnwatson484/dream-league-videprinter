@@ -267,10 +267,12 @@ function sideFor (scoringTeamName: string, names: { home: string | null; away: s
   return `unknown:${scoringTeamName}`
 }
 
-// Identity is `match + side + Nth goal for that side`, not scorer/minute/score text, so a
-// provider correction (renamed scorer, confirmed stoppage time) updates the same goal instead
-// of minting a new one. Raw entries that are byte-for-byte repeats within this snapshot are
-// collapsed here too, before they can consume an ordinal slot as a phantom extra goal.
+// Identity is the provider's own event id where it gives us one, so a correction (renamed
+// scorer, confirmed stoppage time, VAR score change) updates the same goal and a partial
+// event list cannot shift a goal onto an id that belongs to another. Only sources that
+// supply no event id fall back to `match + side + Nth goal for that side`, which is
+// positional and therefore only stable while the list is complete. Raw entries that are
+// byte-for-byte repeats within this snapshot are collapsed before they can consume a slot.
 function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEvent[] {
   const names = getTeamNames(match)
   const ordinals = new Map<string, number>()
@@ -286,10 +288,18 @@ function buildGoalEvents (match: LiveMatch, rawGoals: NormalizeInput[]): GoalEve
 
     const ordinal = (ordinals.get(side) ?? 0) + 1
     ordinals.set(side, ordinal)
-    result.push({ ...partial, id: `${match.id}-${side}-${ordinal}` })
+    const providerEventId = providerEventIdOf(rawGoal)
+    const id = providerEventId
+      ? `${match.id}-${providerEventId}`
+      : `${match.id}-${side}-${ordinal}`
+    result.push({ ...partial, id })
   }
 
   return result
+}
+
+function providerEventIdOf (rawGoal: NormalizeInput): string {
+  return String(rawGoal.eventId ?? '').trim()
 }
 
 export async function fetchLiveScoreGoals (fetcher: typeof fetch = fetch): Promise<GoalEvent[]> {
@@ -463,7 +473,8 @@ export async function goalsForMatch (match: LiveMatch, liveCreds: LiveCreds, fet
   }
 
   const candidates = excludeShootoutGoals(buildGoalEvents(match, events))
-  const trust = assessPoll(match, candidates, fixtureId, eventsFetchFailed)
+  const idsAreStable = events.length > 0 && events.every(e => providerEventIdOf(e) !== '')
+  const trust = assessPoll(match, candidates, fixtureId, eventsFetchFailed, idsAreStable)
 
   const goals = trust.emit ? changedGoals(candidates, existing) : []
   const retractions = trust.retract ? computeRetractions(candidates, existing, fixtureId) : []
@@ -561,10 +572,11 @@ interface PollTrust {
 // A failed events fetch or a finished match no longer surfacing event detail leaves
 // `candidates` empty or short for reasons that have nothing to do with a goal being
 // disallowed, so those cases must not be mistaken for a fixture's goals being retracted.
-// A short list is not safe to emit either: ids are positional, so the Nth goal slides onto
-// an id that already belongs to an earlier goal and overwrites it on save. An unparseable
-// score only costs us the ability to verify, so goals still stand - only retraction stops.
-function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean): PollTrust {
+// A short list never permits retraction. It is safe to emit only when every goal carries a
+// provider id: with positional ids the Nth goal would slide onto an id already belonging to
+// an earlier goal and overwrite it on save. An unparseable score only costs us the ability
+// to verify, so goals still stand - only retraction stops.
+function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: string, eventsFetchFailed: boolean, idsAreStable: boolean): PollTrust {
   if (eventsFetchFailed) {
     logger.warn('ignoring poll for fixture id=%s: events fetch failed this poll', fixtureId)
     return { emit: false, retract: false, reason: 'events-fetch-failed' }
@@ -577,8 +589,8 @@ function assessPoll (match: LiveMatch, candidates: GoalEvent[], fixtureId: strin
   }
 
   if (candidates.length < expectedGoals) {
-    logger.warn('ignoring poll for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found', fixtureId, expectedGoals, candidates.length)
-    return { emit: false, retract: false, reason: 'events-lagging' }
+    logger.warn('events lag the score for fixture id=%s: score implies %d goal(s) but only %d event candidate(s) found%s', fixtureId, expectedGoals, candidates.length, idsAreStable ? ', emitting the goals already confirmed' : ', withholding them')
+    return { emit: idsAreStable, retract: false, reason: 'events-lagging' }
   }
 
   return { emit: true, retract: true, reason: 'ok' }
@@ -612,9 +624,26 @@ function appendCredsToUrl (url: string, key: string, secret: string): string {
 // id 404s in 0.3s, a real one never responds). `matches/events.json?match_id=<matchId>` on
 // the same host returns the same payload in ~0.25s, so build the URL ourselves and treat
 // `urls.events` purely as the provider's signal that events exist for this fixture.
-function eventsUrlFor (match: LiveMatch): string {
+function eventsUrlFor (fixtureId: string | number): string {
   const { host } = config.get('dataSource').liveScore
-  return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(match.id))}`
+  return `https://${host}/api-client/matches/events.json?match_id=${encodeURIComponent(String(fixtureId))}`
+}
+
+// Rebuilds a fixture's goals straight from the provider, reading and writing no local state.
+// Exists so the goal-id migration can work out what a stored goal's id would be under the
+// current scheme, including for fixtures that finished long ago and have left the live feed.
+export async function rebuildGoalsForFixture (fixtureId: string, fetcher: typeof fetch = fetch): Promise<GoalEvent[]> {
+  const { key, secret } = config.get('dataSource').liveScore
+  const url = appendCredsToUrl(eventsUrlFor(fixtureId), key, secret)
+  const res = await issueRequest(fetcher, url, `events for fixture id=${fixtureId}`)
+  if (!res) { return [] }
+
+  const json = await res.json()
+  const match: LiveMatch | undefined = json?.data?.match
+  if (!match) { return [] }
+  const events: RawEvent[] = json?.data?.event || json?.data?.events || []
+  const mapped = mapGoalEvents(orderEvents(events), match)
+  return excludeShootoutGoals(buildGoalEvents(match, mapped))
 }
 
 async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher: typeof fetch = fetch): Promise<MatchEventsResult> {
@@ -623,7 +652,7 @@ async function fetchMatchEvents (match: LiveMatch, liveCreds: LiveCreds, fetcher
     return { events: [], failed: true }
   }
 
-  const url = appendCredsToUrl(eventsUrlFor(match), liveCreds?.key, liveCreds?.secret)
+  const url = appendCredsToUrl(eventsUrlFor(match.id), liveCreds?.key, liveCreds?.secret)
   logger.debug('events requesting %s', maskSecret(url))
   const res = await issueRequest(fetcher, url, `events for match id=${match.id}`)
   if (!res) { return { events: [], failed: true } }

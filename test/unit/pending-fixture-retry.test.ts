@@ -62,14 +62,19 @@ describe('pending fixture retry', () => {
     vi.useRealTimers()
   })
 
-  test('resolves and emits a goal once a later retry catches up with the score', async () => {
+  test('emits the goals already confirmed while the events list still lags the score', async () => {
     const first = await fetchLiveScoreData(fetcherReturning([match()], [oneGoal]))
-    expect(first.goals).toEqual([])
+
+    expect(first.goals.map(g => g.id)).toEqual(['1-e1'])
+  })
+
+  test('picks up the remaining goal once a later retry catches up with the score', async () => {
+    await fetchLiveScoreData(fetcherReturning([match()], [oneGoal]))
 
     const retryFetcher = vi.fn().mockResolvedValue(eventsResponse([oneGoal, secondGoal])) as unknown as typeof fetch
     const retry = await retryPendingFixtures(retryFetcher)
 
-    expect(retry.goals).toHaveLength(2)
+    expect(retry.goals.map(g => g.id)).toEqual(['1-e1', '1-e2'])
     expect(retryFetcher).toHaveBeenCalledTimes(1)
   })
 
