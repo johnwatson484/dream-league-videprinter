@@ -229,11 +229,13 @@ function normalizeGoal (match: LiveMatch, rawGoal: NormalizeInput): Omit<GoalEve
   const scoringTeamGuess = inferScoringTeam(match, homeScore, awayScore, rawGoal)
   const names = getTeamNames(match)
   const minute = Number.parseInt(rawGoal.time || '', 10) || null
+  const kickoff = resolveKickoff(match)
 
   return {
     fixtureId: String(match.id),
     competition: match?.competition?.name || match.competition_name || '',
     utcTimestamp: goalTimestamp(match, minute),
+    matchUtcTimestamp: kickoff,
     minute,
     scoringTeam: { name: scoringTeamGuess || 'Unknown' },
     concedingTeam: { name: scoringTeamGuess === names.home ? (names.away || 'Unknown') : (names.home || 'Unknown') },

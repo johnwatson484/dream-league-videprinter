@@ -86,6 +86,19 @@ describe('poll cycle: corrections and retractions', () => {
     expect(goalBroadcasts).toHaveLength(1)
   })
 
+  test('broadcasts and stores a corrected match date even when other goal details are unchanged', async () => {
+    const original = goal({ matchUtcTimestamp: new Date('2026-08-15T15:00:00.000Z') })
+    const corrected = { ...original, matchUtcTimestamp: new Date('2026-08-14T15:00:00.000Z') }
+    mockFetchLiveScoreData.mockResolvedValueOnce({ goals: [original], matches: [], retractions: [] })
+    mockFetchLiveScoreData.mockResolvedValueOnce({ goals: [corrected], matches: [], retractions: [] })
+
+    await runPollCycle()
+    expect(await runPollCycle()).toBe(1)
+    expect(goalBroadcasts).toHaveLength(2)
+    expect(goalBroadcasts[1]!.matchUtcTimestamp).toEqual(corrected.matchUtcTimestamp)
+    expect(eventsStore.all()).toEqual([corrected])
+  })
+
   test('retracts a goal that disappears from a later poll and reflects it in the events store', async () => {
     mockFetchLiveScoreData.mockResolvedValueOnce({ goals: [goal()], matches: [], retractions: [] })
     await runPollCycle()

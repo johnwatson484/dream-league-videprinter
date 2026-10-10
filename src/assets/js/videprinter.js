@@ -19,6 +19,24 @@
   const rendered = new Map()
   // Updates that arrived while paused, replayed in order on resume so none are lost.
   const deferred = []
+  const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  })
+  const dayFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
+  })
+
+  function matchDay (goal) {
+    // Older stored events have only a goal timestamp. Never invent a date for bad data.
+    for (const timestamp of [goal.matchUtcTimestamp, goal.utcTimestamp]) {
+      if (!timestamp) { continue }
+      const date = new Date(timestamp)
+      if (Number.isNaN(date.getTime())) { continue }
+      const parts = Object.fromEntries(dayFormatter.formatToParts(date).map(part => [part.type, part.value]))
+      return `${parts.year}-${parts.month}-${parts.day}`
+    }
+    return ''
+  }
 
   function element (tag, className, text) {
     const node = document.createElement(tag)
@@ -84,6 +102,7 @@
   function buildEvent (goal) {
     const li = element('li', 'videprinter-event list-group-item')
     li.dataset.timestamp = goal.utcTimestamp || ''
+    li.dataset.day = matchDay(goal)
 
     const header = element('div', 'goal-header')
     if (goal.minute != null) { header.append(element('span', 'goal-minute', `${goal.minute}'`)) }
@@ -121,6 +140,7 @@
     return JSON.stringify([
       goal.minute, goal.scorer?.name, goal.scoringTeam.name, goal.concedingTeam.name,
       goal.homeTeam || null, goal.awayTeam || null,
+      goal.utcTimestamp || null, goal.matchUtcTimestamp || null,
       goal.scoreAfterEvent?.home ?? null, goal.scoreAfterEvent?.away ?? null,
       goal.potentialGoalFor?.manager || null, goal.potentialGoalFor?.substitute || false,
       goal.potentialConcedingFor?.manager || null, goal.potentialConcedingFor?.substitute || false
@@ -131,12 +151,12 @@
     return Boolean(goal.potentialGoalFor || goal.potentialConcedingFor)
   }
 
-  // Newest first. Goals can arrive out of order - a late one from an earlier minute, or a
-  // history resync - so position by timestamp rather than always going to the top.
+  // Newest match day first, then newest goal. Keep a late-night fixture together even
+  // when its goals cross midnight; late arrivals and history resyncs use the same order.
   function insertInOrder (li) {
-    const timestamp = li.dataset.timestamp
-    for (const child of list.children) {
-      if (child.dataset.timestamp < timestamp) {
+    const order = `${li.dataset.day}/${li.dataset.timestamp}`
+    for (const child of list.querySelectorAll('.videprinter-event')) {
+      if (`${child.dataset.day}/${child.dataset.timestamp}` < order) {
         list.insertBefore(li, child)
         return
       }
@@ -161,7 +181,8 @@
     li.classList.toggle('filtered-out', !showAllGoals && !matched)
 
     if (existing) {
-      list.replaceChild(li, existing.element)
+      existing.element.remove()
+      insertInOrder(li)
       flash(li, 'corrected-goal')
     } else {
       insertInOrder(li)
@@ -198,6 +219,31 @@
     filterNotice.textContent = hidden > 0
       ? `${hidden} goal${hidden === 1 ? '' : 's'} hidden by filter`
       : ''
+    refreshDayHeadings()
+  }
+
+  function refreshDayHeadings () {
+    list.querySelectorAll('.videprinter-day').forEach(heading => { heading.remove() })
+    let previousDay = null
+    for (const row of list.querySelectorAll('.videprinter-event')) {
+      if (row.classList.contains('filtered-out') || row.dataset.day === previousDay) { continue }
+      const day = row.dataset.day
+      const separator = element('li', 'videprinter-day list-group-item')
+      separator.setAttribute('role', 'presentation')
+      const heading = element('h3', 'videprinter-day-heading')
+      if (day) {
+        const label = dateFormatter.formatToParts(new Date(`${day}T12:00:00Z`))
+          .filter(part => part.type !== 'literal').map(part => part.value).join(' ')
+        const time = element('time', null, label)
+        time.dateTime = day
+        heading.append(time)
+      } else {
+        heading.textContent = 'Date unavailable'
+      }
+      separator.append(heading)
+      list.insertBefore(separator, row)
+      previousDay = day
+    }
   }
 
   function timeAgo (ts) {
@@ -245,8 +291,11 @@
       .then(r => r.json())
       .then(data => {
         if (!Array.isArray(data.events)) { return }
-        reconcile(data.events)
-        data.events.forEach(ev => { upsertEvent(ev, { animate: false }) })
+        applyOrDefer(() => {
+          reconcile(data.events)
+          data.events.forEach(ev => { upsertEvent(ev, { animate: false }) })
+          refreshFilterState()
+        })
       })
       .catch(err => { console.error('failed to load videprinter history', err) })
   }

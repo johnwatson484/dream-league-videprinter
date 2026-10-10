@@ -59,6 +59,7 @@ describe('goal timestamps', () => {
 
     expect(goals).toHaveLength(1)
     expect(goals[0]!.utcTimestamp.toISOString()).toBe('2026-08-15T15:23:00.000Z')
+    expect(goals[0]!.matchUtcTimestamp?.toISOString()).toBe('2026-08-15T15:00:00.000Z')
   })
 
   test('records the kick-off as the match timestamp', async () => {
@@ -74,6 +75,7 @@ describe('goal timestamps', () => {
 
     // Kick-off 00:15 on the 16th plus the 23rd minute.
     expect(goals[0]!.utcTimestamp.toISOString()).toBe('2026-08-16T00:38:00.000Z')
+    expect(goals[0]!.matchUtcTimestamp?.toISOString()).toBe('2026-08-16T00:15:00.000Z')
   })
 
   test('orders goals across matches with different kick-offs', async () => {
@@ -103,6 +105,7 @@ describe('goal timestamps', () => {
     const { goals } = await fetchLiveScoreData(fetcherReturning([undated]))
 
     expect(goals[0]!.utcTimestamp.getTime()).toBeGreaterThanOrEqual(before)
+    expect(goals[0]!.matchUtcTimestamp).toBeNull()
   })
 
   test('falls back to ingest time when the minute is unknown', async () => {
@@ -115,6 +118,7 @@ describe('goal timestamps', () => {
 
     expect(goals[0]!.minute).toBeNull()
     expect(goals[0]!.utcTimestamp.getTime()).toBeGreaterThanOrEqual(before)
+    expect(goals[0]!.matchUtcTimestamp?.toISOString()).toBe('2026-08-15T15:00:00.000Z')
   })
 
   test('excludes penalty shootout kicks reported at minute 120, even though the score keeps climbing normally', async () => {

@@ -3,6 +3,9 @@ export interface GoalEvent {
   fixtureId: string
   competition: string
   utcTimestamp: Date
+  // Kick-off identifies the match day even when a goal is scored after midnight.
+  // Absent on older events; null when the provider has no schedule.
+  matchUtcTimestamp?: Date | null
   minute: number | null
   scoringTeam: { name: string }
   concedingTeam: { name: string }

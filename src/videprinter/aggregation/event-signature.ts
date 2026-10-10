@@ -1,6 +1,6 @@
 import type { GoalEvent } from '../types.ts'
 
-type SignatureInput = Pick<GoalEvent, 'scorer' | 'minute' | 'scoreAfterEvent' | 'assist' | 'phase'>
+type SignatureInput = Pick<GoalEvent, 'scorer' | 'minute' | 'scoreAfterEvent' | 'assist' | 'phase' | 'matchUtcTimestamp'>
 
 // Captures everything the provider can revise after the fact (scorer corrections, confirmed
 // stoppage time, VAR score changes) so callers can tell a genuine correction from a re-send
@@ -12,5 +12,6 @@ export function contentSignatureFor (event: SignatureInput): string {
     score: event.scoreAfterEvent,
     assist: event.assist?.normalizedName ?? null,
     phase: event.phase,
+    matchUtcTimestamp: event.matchUtcTimestamp ?? null,
   })
 }

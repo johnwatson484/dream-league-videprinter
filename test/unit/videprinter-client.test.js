@@ -72,9 +72,11 @@ async function start () {
   return FakeEventSource.instances[0]
 }
 
-const rows = () => Array.from(document.querySelectorAll('#videprinter li'))
+const rows = () => Array.from(document.querySelectorAll('#videprinter .videprinter-event'))
 const visibleRows = () => rows().filter(li => !li.classList.contains('filtered-out'))
 const text = li => li.textContent.replace(/\s+/g, ' ').trim()
+const headings = () => Array.from(document.querySelectorAll('#videprinter .videprinter-day-heading')).map(text)
+const matchedGoal = (overrides = {}) => goal({ potentialGoalFor: { manager: 'John', substitute: false }, ...overrides })
 
 beforeEach(() => {
   history = []
@@ -117,6 +119,151 @@ describe('videprinter client rendering', () => {
     expect(document.querySelectorAll('#videprinter img')).toHaveLength(0)
     expect(document.querySelectorAll('#videprinter script')).toHaveLength(0)
     expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('<img Src=x Onerror="alert(1)">, A')
+  })
+})
+
+describe('videprinter match day headings', () => {
+  test('groups history by day, newest first, with one heading for each visible day', async () => {
+    history = [
+      matchedGoal({ id: 'old', utcTimestamp: '2026-10-09T14:00:00.000Z' }),
+      matchedGoal({ id: 'latest', utcTimestamp: '2026-10-10T15:00:00.000Z' }),
+      matchedGoal({ id: 'earlier', utcTimestamp: '2026-10-10T14:00:00.000Z' })
+    ]
+    await start()
+
+    expect(headings()).toEqual(['Saturday 10 October 2026', 'Friday 9 October 2026'])
+    expect(rows().map(row => row.dataset.timestamp)).toEqual([
+      '2026-10-10T15:00:00.000Z', '2026-10-10T14:00:00.000Z', '2026-10-09T14:00:00.000Z'
+    ])
+    expect(Array.from(document.querySelectorAll('#videprinter > li')).map(li => li.classList.contains('videprinter-day')))
+      .toEqual([true, false, false, true, false])
+    expect(document.querySelector('.videprinter-day time').dateTime).toBe('2026-10-10')
+  })
+
+  test.each([
+    ['2026-08-15T23:30:00.000Z', 'Sunday 16 August 2026'],
+    ['2026-12-15T23:30:00.000Z', 'Tuesday 15 December 2026'],
+    ['2026-10-24T23:30:00.000Z', 'Sunday 25 October 2026'],
+    ['2026-10-25T23:30:00.000Z', 'Sunday 25 October 2026']
+  ])('uses the London calendar day for %s', async (utcTimestamp, expected) => {
+    history = [matchedGoal({ utcTimestamp })]
+    await start()
+
+    expect(headings()).toEqual([expected])
+  })
+
+  test('keeps goals from a fixture crossing midnight in its kick-off day, behind the newer match day', async () => {
+    const es = await start()
+    es.emit('goal', matchedGoal({
+      id: 'late-goal', utcTimestamp: '2026-12-16T00:45:00.000Z', matchUtcTimestamp: '2026-12-15T23:00:00.000Z'
+    }))
+    es.emit('goal', matchedGoal({
+      id: 'new-day', utcTimestamp: '2026-12-16T00:30:00.000Z', matchUtcTimestamp: '2026-12-16T00:15:00.000Z'
+    }))
+    es.emit('goal', matchedGoal({
+      id: 'early-goal', utcTimestamp: '2026-12-15T23:20:00.000Z', matchUtcTimestamp: '2026-12-15T23:00:00.000Z'
+    }))
+
+    expect(headings()).toEqual(['Wednesday 16 December 2026', 'Tuesday 15 December 2026'])
+    expect(rows().map(row => row.dataset.timestamp)).toEqual([
+      '2026-12-16T00:30:00.000Z', '2026-12-16T00:45:00.000Z', '2026-12-15T23:20:00.000Z'
+    ])
+  })
+
+  test('hides empty day headings with the Dream League filter and restores them with all goals', async () => {
+    history = [matchedGoal(), goal({ id: 'unmatched', utcTimestamp: '2026-09-25T14:00:00.000Z' })]
+    await start()
+
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+    const toggle = document.getElementById('toggle-all-goals')
+    toggle.checked = true
+    toggle.dispatchEvent(new Event('change'))
+    expect(headings()).toEqual(['Saturday 26 September 2026', 'Friday 25 September 2026'])
+    toggle.checked = false
+    toggle.dispatchEvent(new Event('change'))
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+  })
+
+  test('removes a heading only when its final visible goal is retracted', async () => {
+    history = [matchedGoal(), matchedGoal({ id: 'second' })]
+    const es = await start()
+    es.emit('goal-retracted', { id: '1-100' })
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+
+    es.emit('goal-retracted', { id: 'second' })
+    expect(headings()).toEqual([])
+    expect(document.getElementById('empty-state').style.display).toBe('block')
+  })
+
+  test('moves a goal to the correct day when only its kick-off date is corrected', async () => {
+    const original = matchedGoal({ matchUtcTimestamp: '2026-09-26T13:30:00.000Z' })
+    history = [original, matchedGoal({ id: 'other', utcTimestamp: '2026-09-25T14:00:00.000Z' })]
+    const es = await start()
+    es.emit('goal', { ...original, matchUtcTimestamp: '2026-09-24T13:30:00.000Z' })
+
+    expect(headings()).toEqual(['Friday 25 September 2026', 'Thursday 24 September 2026'])
+    expect(rows()).toHaveLength(2)
+    expect(rows()[1].dataset.day).toBe('2026-09-24')
+  })
+
+  test('reorders an existing goal when only its goal timestamp changes', async () => {
+    const original = matchedGoal()
+    history = [original, matchedGoal({ id: 'other', utcTimestamp: '2026-09-26T15:00:00.000Z' })]
+    const es = await start()
+    es.emit('goal', { ...original, utcTimestamp: '2026-09-26T16:00:00.000Z' })
+
+    expect(rows().map(row => row.dataset.timestamp)).toEqual(['2026-09-26T16:00:00.000Z', '2026-09-26T15:00:00.000Z'])
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+  })
+
+  test('falls back to the goal date for an invalid kick-off and groups undated goals last', async () => {
+    history = [
+      matchedGoal({ matchUtcTimestamp: 'invalid' }),
+      matchedGoal({ id: 'missing', utcTimestamp: null }),
+      matchedGoal({ id: 'invalid', utcTimestamp: 'invalid' })
+    ]
+    await start()
+
+    expect(headings()).toEqual(['Saturday 26 September 2026', 'Date unavailable'])
+    expect(rows()[0].dataset.day).toBe('2026-09-26')
+    expect(document.querySelectorAll('.videprinter-day time')).toHaveLength(1)
+  })
+
+  test('removes empty day headings on reconnect even when retained goals are unchanged', async () => {
+    const retained = matchedGoal({ utcTimestamp: '2026-09-25T14:00:00.000Z' })
+    history = [matchedGoal({ id: 'retracted' }), retained]
+    const es = await start()
+    history = [retained]
+    es.emit('error')
+
+    await vi.waitFor(() => expect(headings()).toEqual(['Friday 25 September 2026']), { timeout: 3000 })
+    expect(rows()).toHaveLength(1)
+  })
+
+  test('holds new day headings and retractions while paused, then updates on resume', async () => {
+    history = [matchedGoal()]
+    const es = await start()
+    document.getElementById('toggle-pause').click()
+    es.emit('goal', matchedGoal({ id: 'new', utcTimestamp: '2026-09-27T14:00:00.000Z' }))
+    es.emit('goal-retracted', { id: '1-100' })
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+
+    document.getElementById('toggle-pause').click()
+    expect(headings()).toEqual(['Sunday 27 September 2026'])
+    expect(rows()).toHaveLength(1)
+  })
+
+  test('defers history reconciliation while paused on reconnect', async () => {
+    history = [matchedGoal()]
+    const es = await start()
+    document.getElementById('toggle-pause').click()
+    history = [matchedGoal({ id: 'new', utcTimestamp: '2026-09-27T14:00:00.000Z' })]
+    es.emit('error')
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2), { timeout: 3000 })
+    expect(headings()).toEqual(['Saturday 26 September 2026'])
+
+    document.getElementById('toggle-pause').click()
+    expect(headings()).toEqual(['Sunday 27 September 2026', 'Saturday 26 September 2026'])
   })
 })
 
