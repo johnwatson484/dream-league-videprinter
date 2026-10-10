@@ -4,6 +4,21 @@
   margin: 0;
 }
 
+.videprinter-day {
+  padding: 10px 16px;
+  background: #f8f9fa;
+  color: #505160;
+  border: none;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.videprinter-day-heading {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
 .videprinter-event { 
   padding: 12px 16px; 
   border: none;
@@ -184,6 +199,10 @@
   margin-left: -2.5rem !important;
 }
 @media (max-width: 768px) {
+  .videprinter-day {
+    padding: 8px 12px;
+  }
+
   .videprinter-event {
     padding: 10px 12px;
     font-size: 0.9em;
