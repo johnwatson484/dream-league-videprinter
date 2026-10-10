@@ -48,6 +48,37 @@
     return line
   }
 
+  // Format only for display: matching and stored events retain the provider's full name.
+  function formatScorerName (name) {
+    let value = (name || '').trim().replace(/\s+/g, ' ')
+    const ownGoal = /(?:^|\s)OG$/i.test(value)
+    if (ownGoal) { value = value.replace(/(?:^|\s)OG$/i, '').trim() }
+
+    let surname = value
+    let givenName = ''
+    const comma = value.indexOf(',')
+    if (comma !== -1) {
+      surname = value.slice(0, comma).trim()
+      givenName = value.slice(comma + 1).trim()
+    } else {
+      const trailingInitial = value.match(/^(.+)\s+(\p{L})\.?$/u)
+      if (trailingInitial) {
+        surname = trailingInitial[1]
+        givenName = trailingInitial[2]
+      } else if (value.includes(' ')) {
+        // Without a comma, preserve everything after the first word as the surname.
+        const space = value.indexOf(' ')
+        givenName = value.slice(0, space)
+        surname = value.slice(space + 1)
+      }
+    }
+
+    const titleSurname = (surname || 'Unknown').toLowerCase()
+      .replace(/(^|[\s'’-])\p{L}/gu, part => part.toUpperCase())
+    const initial = givenName.match(/\p{L}/u)?.[0].toUpperCase()
+    return titleSurname + (initial ? `, ${initial}` : '') + (ownGoal ? ' OG' : '')
+  }
+
   // Built with textContent throughout: every value here comes from the provider, so none of
   // it may be parsed as markup.
   function buildEvent (goal) {
@@ -73,7 +104,7 @@
     }
 
     const details = element('div', 'goal-details')
-    details.append(element('span', 'goal-scorer', goal.scorer.name))
+    details.append(element('span', 'goal-scorer', formatScorerName(goal.scorer?.name)))
     if (goal.potentialGoalFor) {
       details.append(dreamLeagueLine('potential-goal', 'Goal for ', goal.potentialGoalFor))
     }
@@ -88,7 +119,7 @@
   // Everything the row displays, so a re-send is ignored but a genuine revision is not.
   function signatureOf (goal) {
     return JSON.stringify([
-      goal.minute, goal.scorer.name, goal.scoringTeam.name, goal.concedingTeam.name,
+      goal.minute, goal.scorer?.name, goal.scoringTeam.name, goal.concedingTeam.name,
       goal.homeTeam || null, goal.awayTeam || null,
       goal.scoreAfterEvent?.home ?? null, goal.scoreAfterEvent?.away ?? null,
       goal.potentialGoalFor?.manager || null, goal.potentialGoalFor?.substitute || false,
