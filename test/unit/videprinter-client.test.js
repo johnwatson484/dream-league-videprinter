@@ -87,7 +87,7 @@ describe('videprinter client rendering', () => {
     es.emit('goal', goal({ potentialGoalFor: { manager: 'John', substitute: false } }))
 
     expect(rows()).toHaveLength(1)
-    expect(text(rows()[0])).toBe("23'Derby vs Leeds 0-1Joel PiroeGoal for John")
+    expect(text(rows()[0])).toBe("23'Derby vs Leeds 0-1Piroe, JGoal for John")
   })
 
   test('orders the fixture by the home and away teams the feed supplies, not by who is winning', async () => {
@@ -110,13 +110,74 @@ describe('videprinter client rendering', () => {
   test('escapes provider text rather than letting it become markup', async () => {
     const es = await start()
     es.emit('goal', goal({
-      scorer: { name: '<img src=x onerror="alert(1)">' },
+      scorer: { name: '<img src=x onerror="alert(1)">, Ashley' },
       potentialGoalFor: { manager: '<script>alert(2)</script>', substitute: false }
     }))
 
     expect(document.querySelectorAll('#videprinter img')).toHaveLength(0)
     expect(document.querySelectorAll('#videprinter script')).toHaveLength(0)
-    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('<img src=x onerror="alert(1)">')
+    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('<img Src=x Onerror="alert(1)">, A')
+  })
+})
+
+describe('videprinter scorer name formatting', () => {
+  test.each([
+    ['ashley fletcher', 'Fletcher, A'],
+    ['FLETCHER, Ashley', 'Fletcher, A'],
+    ['fLeTcHeR, aShLeY', 'Fletcher, A'],
+    ['a. fletcher', 'Fletcher, A'],
+    ['a fletcher', 'Fletcher, A'],
+    ['Fletcher A.', 'Fletcher, A'],
+    ['Fletcher a', 'Fletcher, A'],
+    ['Fletcher, a.', 'Fletcher, A'],
+    ['fletcher', 'Fletcher'],
+    ['fletcher,', 'Fletcher'],
+    ['  FLETCHER,  ashley  ', 'Fletcher, A'],
+    ['  ashley\t\n fletcher  ', 'Fletcher, A'],
+    ['Paudie O’Connor', 'O’Connor, P'],
+    ["paudie o'connor", "O'Connor, P"],
+    ['emile smith-rowe', 'Smith-Rowe, E'],
+    ['Ludwig van Beethoven', 'Van Beethoven, L'],
+    ['D. van Wageningen', 'Van Wageningen, D'],
+    ['van Beethoven, Ludwig', 'Van Beethoven, L'],
+    ['van Beethoven l.', 'Van Beethoven, L'],
+    ['édouard núñez', 'Núñez, É'],
+    ['NÚÑEZ, édouard', 'Núñez, É'],
+    ['ashley fletcher OG', 'Fletcher, A OG'],
+    ['FLETCHER, a. og', 'Fletcher, A OG'],
+    ['fletcher OG', 'Fletcher OG'],
+    ['  ', 'Unknown'],
+    ['', 'Unknown'],
+    [null, 'Unknown'],
+    [undefined, 'Unknown'],
+    ['Unknown', 'Unknown']
+  ])('displays %j as %j in live goals', async (name, expected) => {
+    const es = await start()
+    es.emit('goal', goal({ scorer: { name } }))
+
+    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe(expected)
+  })
+
+  test('formats saved history when it loads', async () => {
+    history = [
+      goal({ id: '1-100', scorer: { name: 'FLETCHER, Ashley' } }),
+      goal({ id: '1-101', scorer: { name: 'Paudie O’Connor OG' } }),
+      goal({ id: '1-102', scorer: { name: 'fletcher' } })
+    ]
+
+    await start()
+
+    expect(rows().map(row => row.querySelector('.goal-scorer').textContent)).toEqual([
+      'Fletcher, A', 'O’Connor, P OG', 'Fletcher'
+    ])
+    expect(history[0].scorer.name).toBe('FLETCHER, Ashley')
+  })
+
+  test('uses Unknown when a goal has no scorer', async () => {
+    const es = await start()
+    es.emit('goal', goal({ scorer: null }))
+
+    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('Unknown')
   })
 })
 
@@ -127,7 +188,7 @@ describe('videprinter client corrections and retractions', () => {
     es.emit('goal', goal({ scorer: { name: 'Dan James' }, potentialGoalFor: { manager: 'John', substitute: false } }))
 
     expect(rows()).toHaveLength(1)
-    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('Dan James')
+    expect(rows()[0].querySelector('.goal-scorer').textContent).toBe('James, D')
   })
 
   test('ignores a re-send of a goal it is already showing', async () => {
