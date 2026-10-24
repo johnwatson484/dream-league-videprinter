@@ -284,6 +284,16 @@ describe('videprinter scorer name formatting', () => {
     ['Paudie O’Connor', 'O’Connor, P'],
     ["paudie o'connor", "O'Connor, P"],
     ['emile smith-rowe', 'Smith-Rowe, E'],
+    ['mccann', 'McCann'],
+    ['MCCANN, ali', 'McCann, A'],
+    ['ali mCcAnN', 'McCann, A'],
+    ['macdonald', 'MacDonald'],
+    ['MACDONALD, alex', 'MacDonald, A'],
+    ['alex mAcDoNaLd OG', 'MacDonald, A OG'],
+    ['alex smith-macdonald', 'Smith-MacDonald, A'],
+    ['ali van mccann', 'Van McCann, A'],
+    ['amccann', 'Amccann'],
+    ['amacdonald', 'Amacdonald'],
     ['Ludwig van Beethoven', 'Van Beethoven, L'],
     ['D. van Wageningen', 'Van Wageningen, D'],
     ['van Beethoven, Ludwig', 'Van Beethoven, L'],
@@ -309,13 +319,15 @@ describe('videprinter scorer name formatting', () => {
     history = [
       goal({ id: '1-100', scorer: { name: 'FLETCHER, Ashley' } }),
       goal({ id: '1-101', scorer: { name: 'Paudie O’Connor OG' } }),
-      goal({ id: '1-102', scorer: { name: 'fletcher' } })
+      goal({ id: '1-102', scorer: { name: 'fletcher' } }),
+      goal({ id: '1-103', scorer: { name: 'MCCANN, ali' } }),
+      goal({ id: '1-104', scorer: { name: 'alex macdonald' } })
     ]
 
     await start()
 
     expect(rows().map(row => row.querySelector('.goal-scorer').textContent)).toEqual([
-      'Fletcher, A', 'O’Connor, P OG', 'Fletcher'
+      'Fletcher, A', 'O’Connor, P OG', 'Fletcher', 'McCann, A', 'MacDonald, A'
     ])
     expect(history[0].scorer.name).toBe('FLETCHER, Ashley')
   })
