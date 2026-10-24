@@ -93,6 +93,8 @@
 
     const titleSurname = (surname || 'Unknown').toLowerCase()
       .replace(/(^|[\s'’-])\p{L}/gu, part => part.toUpperCase())
+      .replace(/(^|[\s'’-])(Ma?c)(\p{L})/gu,
+        (_, boundary, prefix, letter) => boundary + prefix + letter.toUpperCase())
     const initial = givenName.match(/\p{L}/u)?.[0].toUpperCase()
     return titleSurname + (initial ? `, ${initial}` : '') + (ownGoal ? ' OG' : '')
   }
